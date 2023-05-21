@@ -166,7 +166,7 @@ static void prvSwitchThread( Thread_t * xThreadToResume,
                             Thread_t * xThreadToSuspend );
 static void prvSuspendSelf( Thread_t * thread );
 static void prvResumeThread( Thread_t * xThreadId );
-static void vPortSystemTickHandler( int sig );
+//static void vPortSystemTickHandler( int sig );
 static void vPortStartFirstTask( void );
 static void prvPortYieldFromISR( void );
 /*-----------------------------------------------------------*/
@@ -255,7 +255,7 @@ portBASE_TYPE xPortStartScheduler( void )
     int iSignal;
     sigset_t xSignals;
 
-    hMainThread = pthread_self();
+//    hMainThread = pthread_self();
 
     /* Start the timer that generates the tick ISR(SIGALRM).
      * Interrupts are disabled here already. */
@@ -298,30 +298,30 @@ portBASE_TYPE xPortStartScheduler( void )
 
 void vPortEndScheduler( void )
 {
-    struct itimerval itimer;
-    struct sigaction sigtick;
-    Thread_t * xCurrentThread;
+//    struct itimerval itimer;
+//    struct sigaction sigtick;
+//    Thread_t * xCurrentThread;
 
-    /* Stop the timer and ignore any pending SIGALRMs that would end
-     * up running on the main thread when it is resumed. */
-    itimer.it_value.tv_sec = 0;
-    itimer.it_value.tv_usec = 0;
+//    /* Stop the timer and ignore any pending SIGALRMs that would end
+//     * up running on the main thread when it is resumed. */
+//    itimer.it_value.tv_sec = 0;
+//    itimer.it_value.tv_usec = 0;
 
-    itimer.it_interval.tv_sec = 0;
-    itimer.it_interval.tv_usec = 0;
-    ( void ) setitimer( ITIMER_REAL, &itimer, NULL );
+//    itimer.it_interval.tv_sec = 0;
+//    itimer.it_interval.tv_usec = 0;
+//    ( void ) setitimer( ITIMER_REAL, &itimer, NULL );
 
-    sigtick.sa_flags = 0;
-    sigtick.sa_handler = SIG_IGN;
-    sigemptyset( &sigtick.sa_mask );
-    sigaction( SIGALRM, &sigtick, NULL );
+//    sigtick.sa_flags = 0;
+//    sigtick.sa_handler = SIG_IGN;
+//    sigemptyset( &sigtick.sa_mask );
+//    sigaction( SIGALRM, &sigtick, NULL );
 
-    /* Signal the scheduler to exit its loop. */
-    xSchedulerEnd = pdTRUE;
-    ( void ) pthread_kill( hMainThread, SIG_RESUME );
+//    /* Signal the scheduler to exit its loop. */
+//    xSchedulerEnd = pdTRUE;
+//    ( void ) pthread_kill( hMainThread, SIG_RESUME );
 
-    xCurrentThread = prvGetThreadFromTask( xTaskGetCurrentTaskHandle() );
-    prvSuspendSelf( xCurrentThread );
+//    xCurrentThread = prvGetThreadFromTask( xTaskGetCurrentTaskHandle() );
+//    prvSuspendSelf( xCurrentThread );
 }
 /*-----------------------------------------------------------*/
 
@@ -420,38 +420,40 @@ static uint64_t prvStartTimeNs;
  */
 void prvSetupTimerInterrupt( void )
 {
-    struct itimerval itimer;
-    int iRet;
+    /* vPortSystemTickHandler will be called from the QTimer thread */
 
-    /* Initialise the structure with the current timer information. */
-    iRet = getitimer( ITIMER_REAL, &itimer );
+//    struct itimerval itimer;
+//    int iRet;
 
-    if( iRet == -1 )
-    {
-        prvFatalError( "getitimer", errno );
-    }
+//    /* Initialise the structure with the current timer information. */
+//    iRet = getitimer( ITIMER_REAL, &itimer );
 
-    /* Set the interval between timer events. */
-    itimer.it_interval.tv_sec = 0;
-    itimer.it_interval.tv_usec = portTICK_RATE_MICROSECONDS;
+//    if( iRet == -1 )
+//    {
+//        prvFatalError( "getitimer", errno );
+//    }
 
-    /* Set the current count-down. */
-    itimer.it_value.tv_sec = 0;
-    itimer.it_value.tv_usec = portTICK_RATE_MICROSECONDS;
+//    /* Set the interval between timer events. */
+//    itimer.it_interval.tv_sec = 0;
+//    itimer.it_interval.tv_usec = portTICK_RATE_MICROSECONDS;
 
-    /* Set-up the timer interrupt. */
-    iRet = setitimer( ITIMER_REAL, &itimer, NULL );
+//    /* Set the current count-down. */
+//    itimer.it_value.tv_sec = 0;
+//    itimer.it_value.tv_usec = portTICK_RATE_MICROSECONDS;
 
-    if( iRet == -1 )
-    {
-        prvFatalError( "setitimer", errno );
-    }
+//    /* Set-up the timer interrupt. */
+//    iRet = setitimer( ITIMER_REAL, &itimer, NULL );
 
-    prvStartTimeNs = prvGetTimeNs();
+//    if( iRet == -1 )
+//    {
+//        prvFatalError( "setitimer", errno );
+//    }
+
+//    prvStartTimeNs = prvGetTimeNs();
 }
 /*-----------------------------------------------------------*/
 
-static void vPortSystemTickHandler( int sig )
+void vPortSystemTickHandler( int sig )
 {
     Thread_t * pxThreadToSuspend;
     Thread_t * pxThreadToResume;
@@ -601,39 +603,41 @@ static void prvResumeThread( Thread_t * xThreadId )
 
 static void prvSetupSignalsAndSchedulerPolicy( void )
 {
-    struct sigaction sigtick;
-    int iRet;
+    /* vPortSystemTickHandler will be called from the QTimer thread */
 
-    hMainThread = pthread_self();
+//    struct sigaction sigtick;
+//    int iRet;
 
-    /* Initialise common signal masks. */
-    sigfillset( &xAllSignals );
+//    hMainThread = pthread_self();
 
-    /* Don't block SIGINT so this can be used to break into GDB while
-     * in a critical section. */
-    sigdelset( &xAllSignals, SIGINT );
+//    /* Initialise common signal masks. */
+//    sigfillset( &xAllSignals );
 
-    /*
-     * Block all signals in this thread so all new threads
-     * inherits this mask.
-     *
-     * When a thread is resumed for the first time, all signals
-     * will be unblocked.
-     */
-    ( void ) pthread_sigmask( SIG_SETMASK,
-                           &xAllSignals,
-                           &xSchedulerOriginalSignalMask );
+//    /* Don't block SIGINT so this can be used to break into GDB while
+//     * in a critical section. */
+//    sigdelset( &xAllSignals, SIGINT );
 
-    sigtick.sa_flags = 0;
-    sigtick.sa_handler = vPortSystemTickHandler;
-    sigfillset( &sigtick.sa_mask );
+//    /*
+//     * Block all signals in this thread so all new threads
+//     * inherits this mask.
+//     *
+//     * When a thread is resumed for the first time, all signals
+//     * will be unblocked.
+//     */
+//    ( void ) pthread_sigmask( SIG_SETMASK,
+//                           &xAllSignals,
+//                           &xSchedulerOriginalSignalMask );
 
-    iRet = sigaction( SIGALRM, &sigtick, NULL );
+//    sigtick.sa_flags = 0;
+//    sigtick.sa_handler = vPortSystemTickHandler;
+//    sigfillset( &sigtick.sa_mask );
 
-    if( iRet == -1 )
-    {
-        prvFatalError( "sigaction", errno );
-    }
+//    iRet = sigaction( SIGALRM, &sigtick, NULL );
+
+//    if( iRet == -1 )
+//    {
+//        prvFatalError( "sigaction", errno );
+//    }
 }
 /*-----------------------------------------------------------*/
 

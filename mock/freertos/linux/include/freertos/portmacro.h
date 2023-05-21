@@ -106,8 +106,8 @@ extern void vPortExitCritical( void );
 #define portCLEAR_INTERRUPT_MASK_FROM_ISR(x)    vPortClearInterruptMask(x)
 #define portDISABLE_INTERRUPTS()                portSET_INTERRUPT_MASK()
 #define portENABLE_INTERRUPTS()                 portCLEAR_INTERRUPT_MASK()
-#define portENTER_CRITICAL(x)                    vPortEnterCritical()
-#define portEXIT_CRITICAL(x)                     vPortExitCritical()
+//#define portENTER_CRITICAL(x)                    vPortEnterCritical()
+//#define portEXIT_CRITICAL(x)                     vPortExitCritical()
 
 /*-----------------------------------------------------------*/
 
@@ -176,21 +176,37 @@ extern "C" {
  * - Compliance versions will assert if regular critical section API is used in ISR context
  * - Safe versions can be called from either contexts
  */
+
+//#include <pthread.h>
+//static pthread_mutex_t isr_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 #ifdef CONFIG_FREERTOS_CHECK_PORT_CRITICAL_COMPLIANCE
 #define portTRY_ENTER_CRITICAL(mux, timeout)
 #define portENTER_CRITICAL(mux)
 #define portEXIT_CRITICAL(mux)
 #else
-#define portTRY_ENTER_CRITICAL(mux, timeout)
+//#define portTRY_ENTER_CRITICAL(mux, timeout) pthread_mutex_lock(&isr_mutex)
+//#define portEXIT_CRITICAL(mux) pthread_mutex_unlock(&isr_mutex)
+#define portTRY_ENTER_CRITICAL(mux, timeout) spinlock_acquire(mux, timeout)
+#define portENTER_CRITICAL(mux)  spinlock_acquire(mux, 10000)
+#define portEXIT_CRITICAL(mux) spinlock_release(mux)
 #endif /* CONFIG_FREERTOS_CHECK_PORT_CRITICAL_COMPLIANCE */
 
-#define portTRY_ENTER_CRITICAL_ISR(mux, timeout)
-#define portENTER_CRITICAL_ISR(mux)
-#define portEXIT_CRITICAL_ISR(mux)
+//#define portTRY_ENTER_CRITICAL_ISR(mux, timeout) pthread_mutex_lock(&isr_mutex)
+//#define portENTER_CRITICAL_ISR(mux)  pthread_mutex_lock(&isr_mutex)
+//#define portEXIT_CRITICAL_ISR(mux) pthread_mutex_unlock(&isr_mutex)
 
-#define portTRY_ENTER_CRITICAL_SAFE(mux, timeout)
-#define portENTER_CRITICAL_SAFE(mux)
-#define portEXIT_CRITICAL_SAFE(mux)
+//#define portTRY_ENTER_CRITICAL_SAFE(mux, timeout) pthread_mutex_lock(&isr_mutex)
+//#define portENTER_CRITICAL_SAFE(mux) pthread_mutex_lock(&isr_mutex)
+//#define portEXIT_CRITICAL_SAFE(mux) pthread_mutex_unlock(&isr_mutex)
+
+#define portTRY_ENTER_CRITICAL_ISR(mux, timeout) spinlock_acquire(mux, timeout)
+#define portENTER_CRITICAL_ISR(mux)  spinlock_acquire(mux, SPINLOCK_WAIT_FOREVER)
+#define portEXIT_CRITICAL_ISR(mux) spinlock_release(mux)
+
+#define portTRY_ENTER_CRITICAL_SAFE(mux, timeout) spinlock_acquire(mux, timeout)
+#define portENTER_CRITICAL_SAFE(mux) spinlock_acquire(mux, SPINLOCK_WAIT_FOREVER)
+#define portEXIT_CRITICAL_SAFE(mux) spinlock_release(mux)
 
 // ---------------------- Yielding -------------------------
 
@@ -215,8 +231,7 @@ extern "C" {
 
 static inline BaseType_t IRAM_ATTR xPortGetCoreID(void)
 {
-    static int cpu_num = 0;
-    return (uint32_t) cpu_num;
+    return 0;
 }
 /*
  * Send an interrupt to another core in order to make the task running
@@ -244,6 +259,8 @@ typedef spinlock_t                          portMUX_TYPE;               /**< Spi
 #define portMUX_INITIALIZE(mux)             spinlock_initialize(mux)    /*< Initialize a spinlock to its unlocked state */
 
 typedef void (*TaskFunction_t)( void * );
+
+void vPortSystemTickHandler(int sig);
 
 #ifdef __cplusplus
 }
