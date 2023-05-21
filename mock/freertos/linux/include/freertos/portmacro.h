@@ -1,5 +1,150 @@
 #pragma once
 
+
+/*
+ * FreeRTOS Kernel <DEVELOPMENT BRANCH>
+ * Copyright 2020 Cambridge Consultants Ltd.
+ *
+ * SPDX-License-Identifier: MIT
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+ * the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * https://www.FreeRTOS.org
+ * https://github.com/FreeRTOS
+ *
+ */
+
+
+#ifndef PORTMACRO_H
+#define PORTMACRO_H
+
+/* *INDENT-OFF* */
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* *INDENT-ON* */
+
+#include <limits.h>
+
+/*-----------------------------------------------------------
+ * Port specific definitions.
+ *
+ * The settings in this file configure FreeRTOS correctly for the
+ * given hardware and compiler.
+ *
+ * These settings should not be altered.
+ *-----------------------------------------------------------
+ */
+
+/* Type definitions. */
+#define portCHAR        char
+#define portFLOAT       float
+#define portDOUBLE      double
+#define portLONG        long
+#define portSHORT       short
+#define portSTACK_TYPE  unsigned long
+#define portBASE_TYPE   long
+#define portPOINTER_SIZE_TYPE intptr_t
+
+typedef portSTACK_TYPE StackType_t;
+typedef long BaseType_t;
+typedef unsigned long UBaseType_t;
+
+typedef unsigned long TickType_t;
+#define portMAX_DELAY ( TickType_t ) ULONG_MAX
+
+#define portTICK_TYPE_IS_ATOMIC 1
+
+/*-----------------------------------------------------------*/
+
+/* Architecture specifics. */
+#define portNORETURN               __attribute__( ( noreturn ) )
+
+#define portSTACK_GROWTH            ( -1 )
+#define portHAS_STACK_OVERFLOW_CHECKING ( 1 )
+#define portTICK_PERIOD_MS          ( ( TickType_t ) 1000 / configTICK_RATE_HZ )
+#define portTICK_RATE_MICROSECONDS  ( ( TickType_t ) 1000000 / configTICK_RATE_HZ )
+#define portBYTE_ALIGNMENT          8
+/*-----------------------------------------------------------*/
+
+/* Scheduler utilities. */
+extern void vPortYield( void );
+
+#define portYIELD() vPortYield()
+
+#define portEND_SWITCHING_ISR( xSwitchRequired ) if( xSwitchRequired != pdFALSE ) vPortYield()
+#define portYIELD_FROM_ISR( x ) portEND_SWITCHING_ISR( x )
+/*-----------------------------------------------------------*/
+
+/* Critical section management. */
+extern void vPortDisableInterrupts( void );
+extern void vPortEnableInterrupts( void );
+#define portSET_INTERRUPT_MASK()        ( vPortDisableInterrupts() )
+#define portCLEAR_INTERRUPT_MASK()      ( vPortEnableInterrupts() )
+
+extern portBASE_TYPE xPortSetInterruptMask( void );
+extern void vPortClearInterruptMask( portBASE_TYPE xMask );
+
+extern void vPortEnterCritical( void );
+extern void vPortExitCritical( void );
+#define portSET_INTERRUPT_MASK_FROM_ISR()       xPortSetInterruptMask()
+#define portCLEAR_INTERRUPT_MASK_FROM_ISR(x)    vPortClearInterruptMask(x)
+#define portDISABLE_INTERRUPTS()                portSET_INTERRUPT_MASK()
+#define portENABLE_INTERRUPTS()                 portCLEAR_INTERRUPT_MASK()
+#define portENTER_CRITICAL(x)                    vPortEnterCritical()
+#define portEXIT_CRITICAL(x)                     vPortExitCritical()
+
+/*-----------------------------------------------------------*/
+
+extern void vPortThreadDying( void *pxTaskToDelete, volatile BaseType_t *pxPendYield );
+extern void vPortCancelThread( void *pxTaskToDelete );
+#define portPRE_TASK_DELETE_HOOK( pvTaskToDelete, pxPendYield ) vPortThreadDying( ( pvTaskToDelete ), ( pxPendYield ) )
+#define portCLEAN_UP_TCB( pxTCB )   vPortCancelThread( pxTCB )
+/*-----------------------------------------------------------*/
+
+#define portTASK_FUNCTION_PROTO( vFunction, pvParameters ) void vFunction( void *pvParameters )
+#define portTASK_FUNCTION( vFunction, pvParameters ) void vFunction( void *pvParameters )
+/*-----------------------------------------------------------*/
+
+/*
+ * Tasks run in their own pthreads and context switches between them
+ * are always a full memory barrier. ISRs are emulated as signals
+ * which also imply a full memory barrier.
+ *
+ * Thus, only a compilier barrier is needed to prevent the compiler
+ * reordering.
+ */
+#define portMEMORY_BARRIER() __asm volatile( "" ::: "memory" )
+
+extern unsigned long ulPortGetRunTime( void );
+#define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS() /* no-op */
+#define portGET_RUN_TIME_COUNTER_VALUE()         ulPortGetRunTime()
+
+/* *INDENT-OFF* */
+#ifdef __cplusplus
+}
+#endif
+/* *INDENT-ON* */
+
+#endif /* PORTMACRO_H */
+
+
+
 #include "esp_attr.h"
 #include "soc/spinlock.h"
 
@@ -7,30 +152,17 @@
 extern "C" {
 #endif
 
-#define portBYTE_ALIGNMENT			16
-
-/* Type definitions. */
-#define portCHAR		uint8_t
 #define portFLOAT		float
 #define portDOUBLE		double
-#define portLONG		int32_t
-#define portSHORT		int16_t
-#define portSTACK_TYPE	uint8_t
-#define portBASE_TYPE	int
+
 // interrupt module will mask interrupt with priority less than threshold
 #define RVHAL_EXCM_LEVEL    4
-
-typedef portSTACK_TYPE			StackType_t;
-typedef portBASE_TYPE			BaseType_t;
-typedef unsigned portBASE_TYPE	UBaseType_t;
-typedef uint32_t TickType_t;
-#define portMAX_DELAY ( TickType_t ) 0xffffffffUL
 
 #define portVALID_TCB_MEM(...) true
 #define portVALID_STACK_MEM(ptr) true
 
 #define pvPortMallocTcbMem(size)        malloc(size)
-#define pvPortMallocStackMem(size)      malloc(size)
+#define pvPortMallocStackMem(size)      malloc(sizeof(StackType_t)*size)
 
 #define portSTACK_GROWTH                ( -1 )
 
@@ -50,8 +182,6 @@ typedef uint32_t TickType_t;
 #define portEXIT_CRITICAL(mux)
 #else
 #define portTRY_ENTER_CRITICAL(mux, timeout)
-#define portENTER_CRITICAL(mux)
-#define portEXIT_CRITICAL(mux)
 #endif /* CONFIG_FREERTOS_CHECK_PORT_CRITICAL_COMPLIANCE */
 
 #define portTRY_ENTER_CRITICAL_ISR(mux, timeout)
@@ -64,21 +194,6 @@ typedef uint32_t TickType_t;
 
 // ---------------------- Yielding -------------------------
 
-#define portYIELD()
-
-/**
- * @note    The macro below could be used when passing a single argument, or without any argument,
- *          it was developed to support both usages of portYIELD inside of an ISR. Any other usage form
- *          might result in undesired behavior
- *
- * @note [refactor-todo] Refactor this to avoid va_args
- */
-#if defined(__cplusplus) && (__cplusplus >  201703L)
-#define portYIELD_FROM_ISR(...)
-#else
-#define portYIELD_FROM_ISR(...)
-#endif
-
 /* Yielding within an API call (when interrupts are off), means the yield should be delayed
    until interrupts are re-enabled.
 
@@ -90,8 +205,6 @@ typedef uint32_t TickType_t;
 
 #define xPortInIsrContext() false
 
-#define portDISABLE_INTERRUPTS(...)
-
 //#define taskCHECK_FOR_STACK_OVERFLOW()
 //#define taskFIRST_CHECK_FOR_STACK_OVERFLOW()
 //#define taskSECOND_CHECK_FOR_STACK_OVERFLOW()
@@ -100,11 +213,10 @@ typedef uint32_t TickType_t;
 #define portTASK_FUNCTION_PROTO( vFunction, pvParameters )  void vFunction( void *pvParameters )
 #define portTASK_FUNCTION( vFunction, pvParameters )        void vFunction( void *pvParameters )
 
-#define portTICK_PERIOD_MS (10)
-
 static inline BaseType_t IRAM_ATTR xPortGetCoreID(void)
 {
-    return (uint32_t) 0;
+    static int cpu_num = 0;
+    return (uint32_t) cpu_num;
 }
 /*
  * Send an interrupt to another core in order to make the task running
