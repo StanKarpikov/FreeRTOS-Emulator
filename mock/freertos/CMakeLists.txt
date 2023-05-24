@@ -1,0 +1,26 @@
+set(QFREERTOS_SOURCES
+   ${QFREERTOS_SOURCES}
+   ${CMAKE_CURRENT_SOURCE_DIR}/interruptflags.cpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/microcontrollerenvironment.cpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/port.cpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/simulatedtask.cpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/tasktimer.cpp
+   PARENT_SCOPE
+)
+
+set(QFREERTOS_HEADERS
+   ${QFREERTOS_HEADERS}
+   ${CMAKE_CURRENT_SOURCE_DIR}/interruptflags.h
+   ${CMAKE_CURRENT_SOURCE_DIR}/microcontrollerenvironment.h
+   ${CMAKE_CURRENT_SOURCE_DIR}/portmacro.h
+   ${CMAKE_CURRENT_SOURCE_DIR}/simulatedtask.h
+   ${CMAKE_CURRENT_SOURCE_DIR}/tasktimer.h
+   PARENT_SCOPE
+)
+
+
+set(QFREERTOS_INCLUDE_DIRS
+    ${QFREERTOS_INCLUDE_DIRS}
+   ${CMAKE_CURRENT_SOURCE_DIR}
+   PARENT_SCOPE
+)

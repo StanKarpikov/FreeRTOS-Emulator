@@ -80,6 +80,7 @@ typedef unsigned long TickType_t;
 #define portTICK_PERIOD_MS          ( ( TickType_t ) 1000 / configTICK_RATE_HZ )
 #define portTICK_RATE_MICROSECONDS  ( ( TickType_t ) 1000000 / configTICK_RATE_HZ )
 #define portBYTE_ALIGNMENT          8
+#define portTICK_PERIOD_uS          portTICK_RATE_MICROSECONDS
 /*-----------------------------------------------------------*/
 
 /* Scheduler utilities. */
@@ -114,8 +115,8 @@ extern void vPortExitCritical( void );
 
 extern void vPortThreadDying( void *pxTaskToDelete, volatile BaseType_t *pxPendYield );
 extern void vPortCancelThread( void *pxTaskToDelete );
-#define portPRE_TASK_DELETE_HOOK( pvTaskToDelete, pxPendYield ) vPortThreadDying( ( pvTaskToDelete ), ( pxPendYield ) )
-#define portCLEAN_UP_TCB( pxTCB )   vPortCancelThread( pxTCB )
+#define portPRE_TASK_DELETE_HOOK( pvTaskToDelete, pxPendYield ) /*vPortThreadDying( ( pvTaskToDelete ), ( pxPendYield ) )*/
+#define portCLEAN_UP_TCB( pxTCB )   /*vPortCancelThread( pxTCB )*/
 /*-----------------------------------------------------------*/
 
 #define portTASK_FUNCTION_PROTO( vFunction, pvParameters ) void vFunction( void *pvParameters )
@@ -188,9 +189,16 @@ extern "C" {
 #else
 //#define portTRY_ENTER_CRITICAL(mux, timeout) pthread_mutex_lock(&isr_mutex)
 //#define portEXIT_CRITICAL(mux) pthread_mutex_unlock(&isr_mutex)
-#define portTRY_ENTER_CRITICAL(mux, timeout) spinlock_acquire(mux, timeout)
-#define portENTER_CRITICAL(mux)  spinlock_acquire(mux, 10000)
-#define portEXIT_CRITICAL(mux) spinlock_release(mux)
+#define portTRY_ENTER_CRITICAL(mux, timeout) /*spinlock_acquire(mux, timeout, __LINE__, __FILE__)*/
+
+//#define portENTER_CRITICAL(mux)  /*spinlock_acquire(mux, SPINLOCK_WAIT_FOREVER, __LINE__, __FILE__)*/
+//#define portEXIT_CRITICAL(mux) /*spinlock_release(mux)*/
+
+extern void vPortEnterCritical( void );
+extern void vPortExitCritical( void );
+#define portENTER_CRITICAL(mux)        vPortEnterCritical()
+#define portEXIT_CRITICAL(mux)         vPortExitCritical()
+
 #endif /* CONFIG_FREERTOS_CHECK_PORT_CRITICAL_COMPLIANCE */
 
 //#define portTRY_ENTER_CRITICAL_ISR(mux, timeout) pthread_mutex_lock(&isr_mutex)
@@ -201,13 +209,13 @@ extern "C" {
 //#define portENTER_CRITICAL_SAFE(mux) pthread_mutex_lock(&isr_mutex)
 //#define portEXIT_CRITICAL_SAFE(mux) pthread_mutex_unlock(&isr_mutex)
 
-#define portTRY_ENTER_CRITICAL_ISR(mux, timeout) spinlock_acquire(mux, timeout)
-#define portENTER_CRITICAL_ISR(mux)  spinlock_acquire(mux, SPINLOCK_WAIT_FOREVER)
-#define portEXIT_CRITICAL_ISR(mux) spinlock_release(mux)
+#define portTRY_ENTER_CRITICAL_ISR(mux, timeout) /* spinlock_acquire(mux, timeout, __LINE__, __FILE__)*/
+#define portENTER_CRITICAL_ISR(mux)  /* spinlock_acquire(mux, SPINLOCK_WAIT_FOREVER, __LINE__, __FILE__)*/
+#define portEXIT_CRITICAL_ISR(mux) /* spinlock_release(mux)*/
 
-#define portTRY_ENTER_CRITICAL_SAFE(mux, timeout) spinlock_acquire(mux, timeout)
-#define portENTER_CRITICAL_SAFE(mux) spinlock_acquire(mux, SPINLOCK_WAIT_FOREVER)
-#define portEXIT_CRITICAL_SAFE(mux) spinlock_release(mux)
+#define portTRY_ENTER_CRITICAL_SAFE(mux, timeout) /* spinlock_acquire(mux, timeout, __LINE__, __FILE__)*/
+#define portENTER_CRITICAL_SAFE(mux) /* spinlock_acquire(mux, SPINLOCK_WAIT_FOREVER, __LINE__, __FILE__)*/
+#define portEXIT_CRITICAL_SAFE(mux) /* spinlock_release(mux) */
 
 // ---------------------- Yielding -------------------------
 
@@ -261,7 +269,27 @@ typedef spinlock_t                          portMUX_TYPE;               /**< Spi
 
 typedef void (*TaskFunction_t)( void * );
 
-void vPortSystemTickHandler(int sig);
+//extern void vPortForciblyEndThread( void *pxTaskToDelete );
+//#define traceTASK_DELETE( pxTaskToDelete )      vPortForciblyEndThread( pxTaskToDelete )
+
+//extern void vPortAddTaskHandle( void *pxTaskHandle );
+//#define traceTASK_CREATE( pxNewTCB )            vPortAddTaskHandle( pxNewTCB )
+
+/* Posix Signal definitions that can be changed or read as appropriate. */
+#define SIG_SUSPEND                 SIGUSR1
+#define SIG_RESUME                  SIGUSR2
+
+/* Enable the following hash defines to make use of the real-time tick where time progresses at real-time. */
+#define SIG_TICK                    SIGALRM
+#define TIMER_TYPE                  ITIMER_REAL
+/* Enable the following hash defines to make use of the process tick where time progresses only when the process is executing.
+#define SIG_TICK                    SIGVTALRM
+#define TIMER_TYPE                  ITIMER_VIRTUAL      */
+/* Enable the following hash defines to make use of the profile tick where time progresses when the process or system calls are executing.
+#define SIG_TICK                    SIGPROF
+#define TIMER_TYPE                  ITIMER_PROF */
+
+//void vPortSystemTickHandler(int sig);
 
 #ifdef __cplusplus
 }
