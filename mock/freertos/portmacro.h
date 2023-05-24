@@ -141,19 +141,17 @@ void vPortDeleteThread( void *pvThreadToDelete );
 #define xPortInIsrContext() false
 
 /* Critical section handling. */
-void vPortEnterCritical( void );
-void vPortExitCritical( void );
 
-#define portENTER_CRITICAL(x)		vPortEnterCritical()
-#define portEXIT_CRITICAL(x)			vPortExitCritical()
+#define portENTER_CRITICAL(x)		vPortEnterCritical(&global_mux, SPINLOCK_WAIT_FOREVER)
+#define portEXIT_CRITICAL(x)			vPortExitCritical(&global_mux)
 
-#define portTRY_ENTER_CRITICAL_ISR(mux, timeout) vPortEnterCritical()/* spinlock_acquire(mux, timeout, __LINE__, __FILE__)*/
-#define portENTER_CRITICAL_ISR(mux) vPortEnterCritical() /* spinlock_acquire(mux, SPINLOCK_WAIT_FOREVER, __LINE__, __FILE__)*/
-#define portEXIT_CRITICAL_ISR(mux) vPortExitCritical() /* spinlock_release(mux)*/
+#define portTRY_ENTER_CRITICAL_ISR(mux, timeout) vPortEnterCritical(mux, timeout)
+#define portENTER_CRITICAL_ISR(mux) vPortEnterCritical(mux, SPINLOCK_WAIT_FOREVER)
+#define portEXIT_CRITICAL_ISR(mux) vPortExitCritical(mux)
 
-#define portTRY_ENTER_CRITICAL_SAFE(mux, timeout) vPortEnterCritical() /* spinlock_acquire(mux, timeout, __LINE__, __FILE__)*/
-#define portENTER_CRITICAL_SAFE(mux) vPortEnterCritical() /* spinlock_acquire(mux, SPINLOCK_WAIT_FOREVER, __LINE__, __FILE__)*/
-#define portEXIT_CRITICAL_SAFE(mux) vPortExitCritical() /* spinlock_release(mux) */
+#define portTRY_ENTER_CRITICAL_SAFE(mux, timeout) vPortEnterCritical(mux, timeout)
+#define portENTER_CRITICAL_SAFE(mux) vPortEnterCritical(mux, SPINLOCK_WAIT_FOREVER)
+#define portEXIT_CRITICAL_SAFE(mux) vPortExitCritical(mux)
 
 #define portVALID_TCB_MEM(...) true
 #define portVALID_STACK_MEM(ptr) true
@@ -251,6 +249,11 @@ typedef spinlock_t                          portMUX_TYPE;               /**< Spi
 #define portMUX_NO_TIMEOUT                  SPINLOCK_WAIT_FOREVER       /**< When passed for 'timeout_cycles', spin forever if necessary. [refactor-todo] check if this is still required */
 #define portMUX_TRY_LOCK                    SPINLOCK_NO_WAIT            /**< Try to acquire the spinlock a single time only. [refactor-todo] check if this is still required */
 #define portMUX_INITIALIZE(mux)             spinlock_initialize(mux)    /*< Initialize a spinlock to its unlocked state */
+
+extern portMUX_TYPE global_mux;
+
+extern void vPortEnterCritical( portMUX_TYPE *mux, int timeout );
+extern void vPortExitCritical( portMUX_TYPE *mux );
 
 #endif
 
