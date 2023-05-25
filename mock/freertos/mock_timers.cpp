@@ -1,4 +1,4 @@
-#include "device_process.h"
+#include "simulator_rtos.h"
 extern "C"
 {
     #include "FreeRTOS.h"
@@ -17,7 +17,7 @@ TimerHandle_t xTimerCreate(const char* const pcTimerName,
     Q_UNUSED(pvTimerID);
 
     QTimer* timer = new QTimer();
-    timer->moveToThread(device.thread());
+    timer->moveToThread(rtos.thread());
     QObject::connect(timer, &QTimer::timeout, [pxCallbackFunction]() {
         if (pxCallbackFunction) {
             pxCallbackFunction(nullptr);
