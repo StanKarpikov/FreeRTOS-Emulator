@@ -6,6 +6,7 @@ extern "C"
 }
 #include <QThread>
 #include <QDateTime>
+#include <QList>
 
 class SimulatedThread : public QThread
 {
@@ -18,6 +19,8 @@ public:
         taskCode(parameters);
     }
 };
+
+static QList<SimulatedThread*> thread_list = QList<SimulatedThread*>();
 
 portMUX_TYPE global_mux = SPINLOCK_INITIALIZER;
 
@@ -52,6 +55,8 @@ BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
     thread->createdTask = pvCreatedTask;
     thread->setObjectName(pcName);
 
+    thread_list.append(thread);
+
     thread->start();
     if(pvCreatedTask)
     {
@@ -65,11 +70,29 @@ void vTaskDelete( TaskHandle_t xTaskToDelete )
 {
     SimulatedThread* thread = static_cast<SimulatedThread*>(xTaskToDelete);
 
+    thread_list.erase(std::remove_if(thread_list.begin(), thread_list.end(),
+                                     [thread](SimulatedThread* check_thread)
+                                     {
+                                         return check_thread == thread;
+                                     }),
+                                     thread_list.end());
     if (thread) {
         thread->quit();
         thread->wait();
         delete thread;
     }
+}
+
+void terminateAllTasks(void)
+{
+    thread_list.erase(std::remove_if(thread_list.begin(), thread_list.end(),
+                                     [](SimulatedThread* thread)
+                                     {
+                                         thread->quit();
+                                         delete thread;
+                                         return true;
+                                     }),
+                      thread_list.end());
 }
 
 TickType_t xTaskGetTickCount( void )

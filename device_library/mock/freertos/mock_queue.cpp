@@ -1,13 +1,15 @@
-#include "qdebug.h"
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <cstring>
+
 extern "C"
 {
     #include "FreeRTOS.h"
     #include "freertos/queue.h"
 }
 
+#include <QDebug>
 #include <QQueue>
 #include <QMutex>
 #include <QSemaphore>
