@@ -166,7 +166,7 @@ QueueHandle_t xQueueCreateMutex( const uint8_t ucQueueType )
     QueueHandle_t xNewQueue;
     const UBaseType_t uxMutexLength = ( UBaseType_t ) 1, uxMutexSize = ( UBaseType_t ) 0;
 
-    xNewQueue = xQueueGenericCreate( uxMutexLength, uxMutexSize, queueQUEUE_TYPE_MUTEX );
+    xNewQueue = xQueueGenericCreate( uxMutexLength, uxMutexSize, ucQueueType );
 
     return xNewQueue;
 }
@@ -182,10 +182,10 @@ BaseType_t xQueueTakeMutexRecursive( QueueHandle_t xMutex,
     switch (xMutex->ucQueueType) {
         case queueQUEUE_TYPE_RECURSIVE_MUTEX:
             if (xTicksToWait == portMAX_DELAY) {
-                mutex->lock();
+                rec_mutex->lock();
                 success = true;
             } else {
-                success = mutex->tryLock(pdTICKS_TO_MS(xTicksToWait));
+                success = rec_mutex->tryLock(pdTICKS_TO_MS(xTicksToWait));
             }
             break;
         case queueQUEUE_TYPE_MUTEX:
