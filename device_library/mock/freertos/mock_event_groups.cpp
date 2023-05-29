@@ -29,6 +29,12 @@ EventGroupHandle_t xEventGroupCreate()
     return (EventGroupHandle_t)eventGroup;
 }
 
+void vEventGroupDelete( EventGroupHandle_t xEventGroup )
+{
+    EventGroup_t* group = (EventGroup_t*)xEventGroup;
+    delete group;
+}
+
 // Clears bits in the event group
 EventBits_t xEventGroupClearBits(EventGroupHandle_t xEventGroup, const EventBits_t uxBitsToClear)
 {
