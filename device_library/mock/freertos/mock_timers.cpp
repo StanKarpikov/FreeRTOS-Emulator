@@ -13,7 +13,6 @@ TimerHandle_t xTimerCreate(const char* const pcTimerName,
                            void* const pvTimerID,
                            TimerCallbackFunction_t pxCallbackFunction) {
     Q_UNUSED(pcTimerName);
-    Q_UNUSED(uxAutoReload);
     Q_UNUSED(pvTimerID);
 
     QTimer* timer = new QTimer();
@@ -25,6 +24,10 @@ TimerHandle_t xTimerCreate(const char* const pcTimerName,
     });
 
     timer->setInterval(pdTICKS_TO_MS(xTimerPeriodInTicks));
+    if(uxAutoReload == pdFALSE)
+    {
+        timer->setSingleShot(true);
+    }
     return timer;
 }
 
@@ -42,7 +45,6 @@ BaseType_t xTimerGenericCommand(TimerHandle_t xTimer,
         switch (xCommandID) {
         case tmrCOMMAND_EXECUTE_CALLBACK_FROM_ISR:  // tmrCOMMAND_EXECUTE_CALLBACK_FROM_ISR
         case tmrCOMMAND_EXECUTE_CALLBACK:  // tmrCOMMAND_EXECUTE_CALLBACK
-            // Execute the timer callback immediately
             if (timerHandle->isActive()) {
                 timerHandle->stop();
                 if (xCommandID == -1) {
@@ -54,24 +56,19 @@ BaseType_t xTimerGenericCommand(TimerHandle_t xTimer,
             }
             break;
         case tmrCOMMAND_START_DONT_TRACE:  // tmrCOMMAND_START_DONT_TRACE
-//            timerHandle->start();
             QMetaObject::invokeMethod(timerHandle, "start", Qt::QueuedConnection);
             QApplication::processEvents();
             break;
         case tmrCOMMAND_START:  // tmrCOMMAND_START
-//            timerHandle->start(timerHandle->interval());
             QMetaObject::invokeMethod(timerHandle, "start", Qt::QueuedConnection, Q_ARG(int, timerHandle->interval()));
             QApplication::processEvents();
             break;
         case tmrCOMMAND_RESET:  // tmrCOMMAND_RESET
-//            timerHandle->stop();
-//            timerHandle->start(timerHandle->interval());
             QMetaObject::invokeMethod(timerHandle, "stop", Qt::QueuedConnection);
             QMetaObject::invokeMethod(timerHandle, "start", Qt::QueuedConnection, Q_ARG(int, timerHandle->interval()));
             QApplication::processEvents();
             break;
         case tmrCOMMAND_STOP:  // tmrCOMMAND_STOP
-//            timerHandle->stop();
             QMetaObject::invokeMethod(timerHandle, "stop", Qt::QueuedConnection);
             QApplication::processEvents();
             break;
