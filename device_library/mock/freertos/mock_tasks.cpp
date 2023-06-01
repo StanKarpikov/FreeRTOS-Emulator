@@ -66,6 +66,20 @@ BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
     return pdPASS;
 }
 
+TaskHandle_t xTaskCreateStaticPinnedToCore( TaskFunction_t pvTaskCode,
+                                           const char * const pcName,
+                                           const uint32_t ulStackDepth,
+                                           void * const pvParameters,
+                                           UBaseType_t uxPriority,
+                                           StackType_t * const pxStackBuffer,
+                                           StaticTask_t * const pxTaskBuffer,
+                                           const BaseType_t xCoreID )
+{
+    TaskHandle_t pvCreatedTask;
+    xTaskCreatePinnedToCore(pvTaskCode, pcName, ulStackDepth, pvParameters, uxPriority, &pvCreatedTask, xCoreID);
+    return pvCreatedTask;
+}
+
 void vTaskDelete( TaskHandle_t xTaskToDelete )
 {
     SimulatedThread* thread = static_cast<SimulatedThread*>(xTaskToDelete);

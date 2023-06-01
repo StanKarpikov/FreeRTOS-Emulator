@@ -108,6 +108,12 @@ private:
     }
 };
 
+typedef enum
+{
+    QUEUE_DYNAMIC,
+    QUEUE_STATIC
+} queue_type_t;
+
 typedef struct QueueDefinition /* The old naming convention is used to prevent breaking kernel aware debuggers. */
 {
     union{
@@ -123,11 +129,14 @@ typedef struct QueueDefinition /* The old naming convention is used to prevent b
     UBaseType_t ucQueueType;
 
     QMutex mutex;
+
+    queue_type_t type;
 } xQUEUE;
 
-QueueHandle_t xQueueGenericCreate( const UBaseType_t uxQueueLength,
+static QueueHandle_t xQueueGenericCreateInternal( const UBaseType_t uxQueueLength,
                                   const UBaseType_t uxItemSize,
-                                  const uint8_t ucQueueType )
+                                  const uint8_t ucQueueType,
+                                  queue_type_t type)
 {
     Q_UNUSED(uxItemSize);
     xQUEUE* queue = new xQUEUE();
@@ -157,8 +166,28 @@ QueueHandle_t xQueueGenericCreate( const UBaseType_t uxQueueLength,
     queue->ucQueueType = ucQueueType;
     queue->uxItemSize = uxItemSize;
     queue->uxLength = ucQueueType;
+    queue->type = type;
 
     return queue;
+}
+
+QueueHandle_t xQueueGenericCreate( const UBaseType_t uxQueueLength,
+                                  const UBaseType_t uxItemSize,
+                                  const uint8_t ucQueueType )
+{
+    return xQueueGenericCreateInternal(uxQueueLength, uxItemSize, ucQueueType, QUEUE_DYNAMIC);
+}
+
+QueueHandle_t xQueueGenericCreateStatic( const UBaseType_t uxQueueLength,
+                                        const UBaseType_t uxItemSize,
+                                        uint8_t * pucQueueStorage,
+                                        StaticQueue_t * pxStaticQueue,
+                                        const uint8_t ucQueueType )
+{
+    QueueHandle_t handle = xQueueGenericCreateInternal(uxQueueLength, uxItemSize, ucQueueType, QUEUE_STATIC);
+    memset(pxStaticQueue, 0, sizeof(StaticQueue_t));
+    pxStaticQueue->u.pvDummy2 = handle;
+    return handle;
 }
 
 QueueHandle_t xQueueCreateMutex( const uint8_t ucQueueType )
@@ -174,6 +203,12 @@ QueueHandle_t xQueueCreateMutex( const uint8_t ucQueueType )
 BaseType_t xQueueTakeMutexRecursive( QueueHandle_t xMutex,
                              TickType_t xTicksToWait )
 {
+    if(xMutex->u.pSemaphore == 0)
+    {
+        /* Static queue */
+        StaticQueue_t* xQueue_static = (StaticQueue_t*)xMutex;
+        xMutex = (QueueHandle_t)xQueue_static->u.pvDummy2;
+    }
     bool success = false;
     QSemaphore* sem = xMutex->u.pSemaphore;
     QMutex* mutex = xMutex->u.pMutex;
@@ -218,6 +253,12 @@ BaseType_t xQueueTakeMutexRecursive( QueueHandle_t xMutex,
 BaseType_t xQueueSemaphoreTake( QueueHandle_t xQueue,
                                TickType_t xTicksToWait )
 {
+    if(xQueue->u.pSemaphore == 0)
+    {
+        /* Static queue */
+        StaticQueue_t* xQueue_static = (StaticQueue_t*)xQueue;
+        xQueue = (QueueHandle_t)xQueue_static->u.pvDummy2;
+    }
     QSemaphore* sem = xQueue->u.pSemaphore;
     QMutex* mutex = xQueue->u.pMutex;
     QRecursiveMutex* rec_mutex = xQueue->u.pRecursiveMutex;
@@ -268,6 +309,12 @@ BaseType_t xQueueGenericSend( QueueHandle_t xQueue,
                              TickType_t xTicksToWait,
                              const BaseType_t xCopyPosition )
 {
+    if(xQueue->u.pSemaphore == 0)
+    {
+        /* Static queue */
+        StaticQueue_t* xQueue_static = (StaticQueue_t*)xQueue;
+        xQueue = (QueueHandle_t)xQueue_static->u.pvDummy2;
+    }
     QSemaphore* sem = xQueue->u.pSemaphore;
     TimedDeque *queue = xQueue->u.pQueue;
     QMutex* mutex = xQueue->u.pMutex;
@@ -325,6 +372,12 @@ BaseType_t xQueueReceive(QueueHandle_t xQueue,
                          void * const pvBuffer,
                          TickType_t xTicksToWait )
 {
+    if(xQueue->u.pSemaphore == 0)
+    {
+        /* Static queue */
+        StaticQueue_t* xQueue_static = (StaticQueue_t*)xQueue;
+        xQueue = (QueueHandle_t)xQueue_static->u.pvDummy2;
+    }
     TimedDeque *queue = xQueue->u.pQueue;
     bool success = false;
     void* element = NULL;
@@ -354,17 +407,14 @@ QueueHandle_t xQueueCreateMutexStatic( const uint8_t ucQueueType,
     return xQueueCreateMutex(ucQueueType);
 }
 
-QueueHandle_t xQueueGenericCreateStatic( const UBaseType_t uxQueueLength,
-                                        const UBaseType_t uxItemSize,
-                                        uint8_t * pucQueueStorage,
-                                        StaticQueue_t * pxStaticQueue,
-                                        const uint8_t ucQueueType )
-{
-    return xQueueGenericCreate(uxQueueLength, uxItemSize, ucQueueType);
-}
-
 BaseType_t xQueueGiveMutexRecursive( QueueHandle_t xMutex )
 {
+    if(xMutex->u.pSemaphore == 0)
+    {
+        /* Static queue */
+        StaticQueue_t* xQueue_static = (StaticQueue_t*)xMutex;
+        xMutex = (QueueHandle_t)xQueue_static->u.pvDummy2;
+    }
     QRecursiveMutex* mutex = xMutex->u.pRecursiveMutex;
     QRecursiveMutex* rec_mutex = xMutex->u.pRecursiveMutex;
     QSemaphore* sem = xMutex->u.pSemaphore;
@@ -401,6 +451,12 @@ BaseType_t xQueueGiveMutexRecursive( QueueHandle_t xMutex )
 BaseType_t xQueueGiveFromISR(QueueHandle_t xQueue,
                              BaseType_t * const pxHigherPriorityTaskWoken )
 {
+    if(xQueue->u.pSemaphore == 0)
+    {
+        /* Static queue */
+        StaticQueue_t* xQueue_static = (StaticQueue_t*)xQueue;
+        xQueue = (QueueHandle_t)xQueue_static->u.pvDummy2;
+    }
     QSemaphore* sem = xQueue->u.pSemaphore;
     QMutex* mutex = xQueue->u.pMutex;
     QRecursiveMutex* rec_mutex = xQueue->u.pRecursiveMutex;
