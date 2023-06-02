@@ -119,6 +119,11 @@ TickType_t xTaskGetTickCount( void )
     return pdMS_TO_TICKS(QDateTime::currentSecsSinceEpoch() - start_tick);
 }
 
+TickType_t xTaskGetTickCountFromISR( void )
+{
+    return xTaskGetTickCount();
+}
+
 void vPortEnterCritical( portMUX_TYPE *mux, int timeout )
 {
 
@@ -132,6 +137,12 @@ void vPortExitCritical( portMUX_TYPE *mux )
 void vTaskSuspend( TaskHandle_t xTaskToSuspend )
 {
     /* No action, only used in the event loop after exit */
+    qDebug() << "vTaskSuspend() not implemented";
+}
+
+void vTaskSuspendAll( void )
+{
+    qDebug() << "vTaskSuspendAll() not implemented";
 }
 
 TaskHandle_t xTaskGetCurrentTaskHandle( void )
@@ -143,6 +154,11 @@ TaskHandle_t xTaskGetIdleTaskHandleForCPU( UBaseType_t cpuid )
 {
     /* No need to implement */
     return NULL;
+}
+
+BaseType_t xTaskGetSchedulerState( void )
+{
+    return taskSCHEDULER_RUNNING;
 }
 
 extern "C" void heap_caps_enable_nonos_stack_heaps(void)

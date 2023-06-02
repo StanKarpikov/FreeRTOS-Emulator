@@ -70,7 +70,6 @@
 #ifndef PORTMACRO_H
 #define PORTMACRO_H
 
-
 /******************************************************************************
 	Max and Min Tick Rates (taken from all available ports):
 
@@ -254,6 +253,19 @@ extern portMUX_TYPE global_mux;
 
 extern void vPortEnterCritical( portMUX_TYPE *mux, int timeout );
 extern void vPortExitCritical( portMUX_TYPE *mux );
+
+#ifndef PREVENT_DEEP_INCLUDES
+    /* Include these headers here because some files are missing them */
+//    #include <lwip/ip4_addr.h>
+//    #include "esp_netif_types.h"
+    #include "esp_timer.h"
+//    #include "esp_event_legacy.h"
+//    #include <string.h>
+    #include "string_extra.h"
+    #include "esp_idf_version.h"
+#endif
+
+//#define configUSE_NEWLIB_REENTRANT 0
 
 #endif
 

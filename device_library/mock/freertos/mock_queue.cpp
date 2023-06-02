@@ -90,6 +90,12 @@ public:
         return true;
     }
 
+    int number_of_elements(void)
+    {
+        std::unique_lock<std::mutex> lock(mutex_);
+        return deque_.size();
+    }
+
 private:
     std::deque<void*> deque_;
     const size_t maxElements_;
@@ -490,6 +496,49 @@ BaseType_t xQueueGiveFromISR(QueueHandle_t xQueue,
     }
 
     return (success ? pdPASS : pdFAIL);
+}
+
+UBaseType_t uxQueueMessagesWaiting( const QueueHandle_t xQueue )
+{
+    QueueHandle_t xQueueInt;
+    if(xQueue->u.pSemaphore == 0)
+    {
+        /* Static queue */
+        StaticQueue_t* xQueue_static = (StaticQueue_t*)xQueue;
+        xQueueInt = (QueueHandle_t)xQueue_static->u.pvDummy2;
+    }
+    else
+    {
+        xQueueInt = xQueue;
+    }
+    TimedDeque *queue = xQueue->u.pQueue;
+    QSemaphore* sem = xQueueInt->u.pSemaphore;
+    QMutex* mutex = xQueueInt->u.pMutex;
+    QRecursiveMutex* rec_mutex = xQueueInt->u.pRecursiveMutex;
+    UBaseType_t retval = 0;
+
+    switch (xQueue->ucQueueType)
+    {
+        case queueQUEUE_TYPE_BASE:
+            retval = queue->number_of_elements();
+            break;
+        case queueQUEUE_TYPE_BINARY_SEMAPHORE:
+        case queueQUEUE_TYPE_COUNTING_SEMAPHORE:
+            retval = sem->available();
+            break;
+        case queueQUEUE_TYPE_RECURSIVE_MUTEX:
+        case queueQUEUE_TYPE_MUTEX:
+        default:
+            qDebug() << "Unexpected queue type (xQueueGiveFromISR) " << xQueue->ucQueueType
+                     << "; Acceptable types are: "
+                     << queueQUEUE_TYPE_RECURSIVE_MUTEX << ""
+                     << queueQUEUE_TYPE_BINARY_SEMAPHORE << ""
+                     << queueQUEUE_TYPE_COUNTING_SEMAPHORE << ""
+                     << queueQUEUE_TYPE_MUTEX;
+            abort();
+            return pdFAIL;
+    }
+    return retval;
 }
 
 void vQueueDelete( QueueHandle_t xQueue )
