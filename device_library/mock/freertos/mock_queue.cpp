@@ -206,6 +206,22 @@ QueueHandle_t xQueueCreateMutex( const uint8_t ucQueueType )
     return xNewQueue;
 }
 
+QueueHandle_t xQueueCreateCountingSemaphore( const UBaseType_t uxMaxCount,
+                                            const UBaseType_t uxInitialCount )
+{
+    QueueHandle_t xNewQueue;
+    const UBaseType_t uxMutexLength = ( UBaseType_t ) uxMaxCount, uxMutexSize = ( UBaseType_t ) 0;
+
+    xNewQueue = xQueueGenericCreate( uxMutexLength, uxMutexSize, queueQUEUE_TYPE_COUNTING_SEMAPHORE );
+
+    for(int i=0;i<uxMaxCount-uxInitialCount;i++)
+    {
+        xQueueTakeMutexRecursive(xNewQueue, 0);
+    }
+
+    return xNewQueue;
+}
+
 BaseType_t xQueueTakeMutexRecursive( QueueHandle_t xMutex,
                              TickType_t xTicksToWait )
 {
@@ -407,6 +423,14 @@ BaseType_t xQueueReceive(QueueHandle_t xQueue,
     return (success ? pdPASS : pdFAIL);
 }
 
+BaseType_t xQueueReceiveFromISR( QueueHandle_t xQueue,
+                                void * const pvBuffer,
+                                BaseType_t * const pxHigherPriorityTaskWoken )
+{
+    *pxHigherPriorityTaskWoken = 0;
+    return xQueueReceive(xQueue, pvBuffer, 0);
+}
+
 QueueHandle_t xQueueCreateMutexStatic( const uint8_t ucQueueType,
                                       StaticQueue_t * pxStaticQueue )
 {
@@ -539,6 +563,11 @@ UBaseType_t uxQueueMessagesWaiting( const QueueHandle_t xQueue )
             return pdFAIL;
     }
     return retval;
+}
+
+UBaseType_t uxQueueMessagesWaitingFromISR( const QueueHandle_t xQueue )
+{
+    return uxQueueMessagesWaiting( xQueue );
 }
 
 void vQueueDelete( QueueHandle_t xQueue )
