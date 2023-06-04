@@ -19,7 +19,7 @@ public:
     explicit TimedDeque(size_t maxElements, size_t elementSize)
         : maxElements_(maxElements), elementSize_(elementSize) {}
 
-    bool PushFront(const void* element, int timeoutMs) {
+    bool PushFront(const void* element, uint32_t timeoutMs) {
         std::unique_lock<std::mutex> lock(mutex_);
         if (!condFull_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]() { return deque_.size() < maxElements_; })) {
             // Timeout occurred
@@ -33,7 +33,7 @@ public:
         return true;
     }
 
-    bool PushBack(const void* element, int timeoutMs) {
+    bool PushBack(const void* element, uint32_t timeoutMs) {
         std::unique_lock<std::mutex> lock(mutex_);
         if (!condFull_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]() { return deque_.size() < maxElements_; })) {
             // Timeout occurred
@@ -47,7 +47,7 @@ public:
         return true;
     }
 
-    bool PopFront(void* destination, int timeoutMs) {
+    bool PopFront(void* destination, uint32_t timeoutMs) {
         std::unique_lock<std::mutex> lock(mutex_);
         if (!condEmpty_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]() { return !deque_.empty(); })) {
             // Timeout occurred
@@ -62,7 +62,7 @@ public:
         return true;
     }
 
-    bool PopBack(void* destination, int timeoutMs) {
+    bool PopBack(void* destination, uint32_t timeoutMs) {
         std::unique_lock<std::mutex> lock(mutex_);
         if (!condEmpty_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]() { return !deque_.empty(); })) {
             // Timeout occurred
@@ -77,7 +77,7 @@ public:
         return true;
     }
 
-    bool OverwriteLast(const void* element, int timeoutMs) {
+    bool OverwriteLast(const void* element, uint32_t timeoutMs) {
         std::unique_lock<std::mutex> lock(mutex_);
         if (!condEmpty_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]() { return !deque_.empty(); })) {
             // Timeout occurred
@@ -346,12 +346,18 @@ BaseType_t xQueueGenericSend( QueueHandle_t xQueue,
 
     switch (xQueue->ucQueueType) {
         case queueQUEUE_TYPE_BASE:
+            if(!pvItemToQueue)
+            {
+                    abort();
+            }
             switch(xCopyPosition){
                 case queueSEND_TO_BACK:
                     success = queue->PushBack(pvItemToQueue, pdTICKS_TO_MS(xTicksToWait));
+//                    qDebug() << "PushBack to " << queue << " = " << *(uint32_t*)pvItemToQueue;
                     break;
                 case queueSEND_TO_FRONT:
                     success = queue->PushFront(pvItemToQueue, pdTICKS_TO_MS(xTicksToWait));
+//                    qDebug() << "PushFront to " << queue << " = " << *(uint32_t*)pvItemToQueue;
                     break;
                 case queueOVERWRITE:
                     success = queue->OverwriteLast(pvItemToQueue, pdTICKS_TO_MS(xTicksToWait));
@@ -406,7 +412,22 @@ BaseType_t xQueueReceive(QueueHandle_t xQueue,
 
     switch (xQueue->ucQueueType) {
         case queueQUEUE_TYPE_BASE:
+            if(!pvBuffer)
+            {
+                abort();
+            }
             success = queue->PopBack(pvBuffer, pdTICKS_TO_MS(xTicksToWait));
+//            if (success)
+//            {
+//                qDebug() << "Pop from " << queue << " = " << *(uint32_t*)pvBuffer;
+//            }
+//            else
+//            {
+//                if(xTicksToWait > 2000)
+//                {
+//                    qDebug() << "Unusual";
+//                }
+//            }
             break;
         case queueQUEUE_TYPE_BINARY_SEMAPHORE:
         case queueQUEUE_TYPE_COUNTING_SEMAPHORE:
