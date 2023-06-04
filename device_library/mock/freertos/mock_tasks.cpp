@@ -1,26 +1,61 @@
+#include <algorithm>
+#include <atomic>
+#include <cstdlib>
+#include <thread>
+#include <string>
+#include <list>
 extern "C"
 {
     #include "FreeRTOS.h"
     #include "freertos/task.h"
     #include "portmacro.h"
 }
-#include <QThread>
-#include <QDateTime>
-#include <QList>
+#include <signal.h>
 
-class SimulatedThread : public QThread
+class SimulatedThread
 {
 public:
     TaskFunction_t taskCode;
     void* parameters;
     TaskHandle_t* createdTask;
 
-    void run() override {
+    void run() {
+        thread_id = pthread_self();
+        thread_started = true;
+        pthread_setname_np(pthread_self(), _name.c_str());
         taskCode(parameters);
     }
+
+    void start(void)
+    {
+        worker = std::thread(&SimulatedThread::run, this);
+    }
+
+    void stop(void)
+    {
+        if(thread_started)
+        {
+            pthread_kill(thread_id, SIGTERM);
+            thread_started = false;
+        }
+        else
+        {
+            abort();
+        }
+    }
+
+    void setObjectName(const char *name)
+    {
+        _name = std::string(name);
+    }
+
+    pthread_t thread_id;
+    std::atomic<bool> thread_started;
+    std::thread worker;
+    std::string _name;
 };
 
-static QList<SimulatedThread*> thread_list = QList<SimulatedThread*>();
+static std::list<SimulatedThread*> thread_list = std::list<SimulatedThread*>();
 
 portMUX_TYPE global_mux = SPINLOCK_INITIALIZER;
 
@@ -28,13 +63,13 @@ void vTaskStartScheduler( void )
 {
     while(true)
     {
-        QThread::sleep(10);
+        sleep(10);
     };
 }
 
 void vTaskDelay( const TickType_t xTicksToDelay )
 {
-    QThread::msleep(pdTICKS_TO_MS(xTicksToDelay));
+    usleep(pdTICKS_TO_MS(xTicksToDelay)*1000);
 }
 
 BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
@@ -45,17 +80,13 @@ BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
                                    TaskHandle_t * const pvCreatedTask,
                                    const BaseType_t xCoreID)
 {
-    Q_UNUSED(usStackDepth);
-    Q_UNUSED(uxPriority);
-    Q_UNUSED(xCoreID);
-
     SimulatedThread* thread = new SimulatedThread();
     thread->taskCode = pvTaskCode;
     thread->parameters = pvParameters;
     thread->createdTask = pvCreatedTask;
     thread->setObjectName(pcName);
 
-    thread_list.append(thread);
+    thread_list.push_back(thread);
 
     thread->start();
     if(pvCreatedTask)
@@ -91,8 +122,7 @@ void vTaskDelete( TaskHandle_t xTaskToDelete )
                                      }),
                                      thread_list.end());
     if (thread) {
-        thread->quit();
-        thread->wait();
+        thread->stop();
         delete thread;
     }
 }
@@ -102,7 +132,7 @@ void terminateAllTasks(void)
     thread_list.erase(std::remove_if(thread_list.begin(), thread_list.end(),
                                      [](SimulatedThread* thread)
                                      {
-                                         thread->quit();
+                                         thread->stop();
                                          delete thread;
                                          return true;
                                      }),
@@ -111,12 +141,7 @@ void terminateAllTasks(void)
 
 TickType_t xTaskGetTickCount( void )
 {
-    static uint64_t start_tick = 0;
-    if(!start_tick)
-    {
-        start_tick = QDateTime::currentSecsSinceEpoch();
-    }
-    return pdMS_TO_TICKS(QDateTime::currentSecsSinceEpoch() - start_tick);
+    return pdMS_TO_TICKS(esp_timer_get_time()/1000);
 }
 
 TickType_t xTaskGetTickCountFromISR( void )
@@ -137,17 +162,24 @@ void vPortExitCritical( portMUX_TYPE *mux )
 void vTaskSuspend( TaskHandle_t xTaskToSuspend )
 {
     /* No action, only used in the event loop after exit */
-    qDebug() << "vTaskSuspend() not implemented";
+    printf("vTaskSuspend() not implemented\n");
 }
 
 void vTaskSuspendAll( void )
 {
-    qDebug() << "vTaskSuspendAll() not implemented";
+    printf("vTaskSuspendAll() not implemented\n");
 }
 
 TaskHandle_t xTaskGetCurrentTaskHandle( void )
 {
-    return QThread::currentThreadId();
+    for(auto thread : thread_list)
+    {
+        if (thread->thread_id == pthread_self())
+        {
+            return thread;
+        }
+    }
+    return NULL;
 }
 
 TaskHandle_t xTaskGetIdleTaskHandleForCPU( UBaseType_t cpuid )
