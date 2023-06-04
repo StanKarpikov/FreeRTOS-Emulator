@@ -3,69 +3,67 @@ extern "C"
     #include "FreeRTOS.h"
     #include "freertos/event_groups.h"
 }
-#include <QtCore>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
 
 struct EventGroup_t {
-    QMutex mutex;
-    QWaitCondition condition;
-    QAtomicInt bits;
+    std::mutex mutex;
+    std::condition_variable condition;
+    std::atomic<EventBits_t> bits;
 };
 
-// Sets bits in the event group
 EventBits_t xEventGroupSetBits(EventGroupHandle_t xEventGroup, const EventBits_t uxBitsToSet)
 {
-    EventGroup_t* group = (EventGroup_t*)xEventGroup;
-    QMutexLocker locker(&group->mutex);
+    EventGroup_t* group = reinterpret_cast<EventGroup_t*>(xEventGroup);
+    std::unique_lock<std::mutex> locker(group->mutex);
     group->bits |= uxBitsToSet;
-    group->condition.wakeAll();
-    return group->bits;
+    group->condition.notify_all();
+    return group->bits.load();
 }
 
-// Creates an event group
 EventGroupHandle_t xEventGroupCreate()
 {
     EventGroup_t* eventGroup = new EventGroup_t;
-    eventGroup->bits = 0;
-    return (EventGroupHandle_t)eventGroup;
+    eventGroup->bits.store(0);
+    return reinterpret_cast<EventGroupHandle_t>(eventGroup);
 }
 
-void vEventGroupDelete( EventGroupHandle_t xEventGroup )
+void vEventGroupDelete(EventGroupHandle_t xEventGroup)
 {
-    EventGroup_t* group = (EventGroup_t*)xEventGroup;
+    EventGroup_t* group = reinterpret_cast<EventGroup_t*>(xEventGroup);
     delete group;
 }
 
-// Clears bits in the event group
 EventBits_t xEventGroupClearBits(EventGroupHandle_t xEventGroup, const EventBits_t uxBitsToClear)
 {
-    EventGroup_t* group = (EventGroup_t*)xEventGroup;
-    QMutexLocker locker(&group->mutex);
+    EventGroup_t* group = reinterpret_cast<EventGroup_t*>(xEventGroup);
+    std::unique_lock<std::mutex> locker(group->mutex);
     group->bits &= ~uxBitsToClear;
-    return group->bits;
+    return group->bits.load();
 }
 
-// Blocks until the specified bits are set in the event group
 EventBits_t xEventGroupWaitBits(EventGroupHandle_t xEventGroup, const EventBits_t uxBitsToWaitFor,
                                 const BaseType_t xClearOnExit, const BaseType_t xWaitForAllBits,
                                 TickType_t xTicksToWait)
 {
-    EventGroup_t* group = (EventGroup_t*)xEventGroup;
-    QMutexLocker locker(&group->mutex);
+    EventGroup_t* group = reinterpret_cast<EventGroup_t*>(xEventGroup);
+    std::unique_lock<std::mutex> locker(group->mutex);
 
     while (true) {
         if (xWaitForAllBits) {
-            if ((group->bits & uxBitsToWaitFor) == uxBitsToWaitFor) {
+            if ((group->bits.load() & uxBitsToWaitFor) == uxBitsToWaitFor) {
                 if (xClearOnExit) {
-                    group->bits &= ~uxBitsToWaitFor;
+                    group->bits.fetch_and(~uxBitsToWaitFor);
                 }
-                return group->bits;
+                return group->bits.load();
             }
         } else {
-            if (group->bits & uxBitsToWaitFor) {
+            if (group->bits.load() & uxBitsToWaitFor) {
                 if (xClearOnExit) {
-                    group->bits &= ~uxBitsToWaitFor;
+                    group->bits.fetch_and(~uxBitsToWaitFor);
                 }
-                return group->bits;
+                return group->bits.load();
             }
         }
 
@@ -73,7 +71,7 @@ EventBits_t xEventGroupWaitBits(EventGroupHandle_t xEventGroup, const EventBits_
             return 0; // Timeout expired
         }
 
-        if (!group->condition.wait(&group->mutex, xTicksToWait)) {
+        if (group->condition.wait_for(locker, std::chrono::milliseconds(xTicksToWait)) == std::cv_status::timeout) {
             return 0; // Timeout expired
         }
     }
