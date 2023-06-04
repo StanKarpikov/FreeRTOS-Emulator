@@ -10,10 +10,7 @@ extern "C"
     #include "freertos/semphr.h"
 }
 
-#include <QDebug>
-#include <QQueue>
-#include <QMutex>
-#include <QSemaphore>
+using namespace std::chrono;
 
 class TimedDeque {
 public:
@@ -121,13 +118,78 @@ typedef enum
     QUEUE_STATIC
 } queue_type_t;
 
+class CountingSemaphore {
+    std::mutex mutex_;
+    std::condition_variable condition_;
+    uint32_t _count;
+    uint32_t _max_count;
+
+public:
+    CountingSemaphore(uint32_t max_count) :
+        _count(0),
+        _max_count(max_count)
+    {}
+
+public:
+    void release() {
+        std::lock_guard<decltype(mutex_)> lock(mutex_);
+        if (_count)
+        {
+            _count--;
+        }
+        else
+        {
+//            abort();
+        }
+        condition_.notify_one();
+    }
+
+    void acquire() {
+        std::unique_lock<decltype(mutex_)> lock(mutex_);
+        while(_count >= _max_count)
+        {
+            condition_.wait(lock);
+        }
+        _count++;
+    }
+
+    bool try_acquire() {
+        std::lock_guard<decltype(mutex_)> lock(mutex_);
+        if(_count < _max_count) {
+            _count++;
+            return true;
+        }
+        return false;
+    }
+
+    bool try_acquire_for(uint32_t timeout_ms) {
+        std::unique_lock<decltype(mutex_)> lock(mutex_);
+        if (_count < _max_count) {
+            _count++;
+            return true;
+        }
+        std::cv_status status = condition_.wait_for(lock, std::chrono::milliseconds(timeout_ms));
+        if (status == std::cv_status::no_timeout) {
+            _count++;
+            return true;
+        }
+        return false;
+    }
+
+    uint32_t available(void)
+    {
+        std::unique_lock<decltype(mutex_)> lock(mutex_);
+        return _max_count-_count;
+    }
+};
+
 typedef struct QueueDefinition /* The old naming convention is used to prevent breaking kernel aware debuggers. */
 {
     union{
         TimedDeque *pQueue;
-        QMutex *pMutex;
-        QSemaphore *pSemaphore;
-        QRecursiveMutex *pRecursiveMutex;
+        std::timed_mutex *pMutex;
+        std::recursive_timed_mutex *pRecursiveMutex;
+        CountingSemaphore *pSemaphore;
     } u;
 
     UBaseType_t uxLength;                   /*< The length of the queue defined as the number of items it will hold, not the number of bytes. */
@@ -135,7 +197,7 @@ typedef struct QueueDefinition /* The old naming convention is used to prevent b
 
     UBaseType_t ucQueueType;
 
-    QMutex mutex;
+    std::mutex mutex;
 
     queue_type_t type;
 } xQUEUE;
@@ -145,7 +207,6 @@ static QueueHandle_t xQueueGenericCreateInternal( const UBaseType_t uxQueueLengt
                                   const uint8_t ucQueueType,
                                   queue_type_t type)
 {
-    Q_UNUSED(uxItemSize);
     xQUEUE* queue = new xQUEUE();
 
     switch (ucQueueType) {
@@ -153,19 +214,19 @@ static QueueHandle_t xQueueGenericCreateInternal( const UBaseType_t uxQueueLengt
             queue->u.pQueue = new TimedDeque(uxQueueLength, uxItemSize);
             break;
         case queueQUEUE_TYPE_MUTEX:  // queueQUEUE_TYPE_MUTEX
-            queue->u.pMutex = new QMutex();
+            queue->u.pMutex = new std::timed_mutex();
             break;
         case queueQUEUE_TYPE_COUNTING_SEMAPHORE:  // queueQUEUE_TYPE_COUNTING_SEMAPHORE
-            queue->u.pSemaphore = new QSemaphore(uxQueueLength);
+            queue->u.pSemaphore = new CountingSemaphore(uxQueueLength);
             break;
         case queueQUEUE_TYPE_BINARY_SEMAPHORE:  // queueQUEUE_TYPE_BINARY_SEMAPHORE
-            queue->u.pSemaphore = new QSemaphore(1);
+            queue->u.pSemaphore = new CountingSemaphore(1);
             break;
         case queueQUEUE_TYPE_RECURSIVE_MUTEX:  // queueQUEUE_TYPE_RECURSIVE_MUTEX
-            queue->u.pRecursiveMutex = new QRecursiveMutex();
+            queue->u.pRecursiveMutex = new std::recursive_timed_mutex();
             break;
         default:
-            qDebug() << "Unexpected queue type (xQueueGenericCreate) " << ucQueueType;
+            printf("Unexpected queue type (xQueueGenericCreate) %d\n", ucQueueType);
             abort();
             return nullptr;
     }
@@ -233,9 +294,9 @@ BaseType_t xQueueTakeMutexRecursive( QueueHandle_t xMutex,
         xMutex = (QueueHandle_t)xQueue_static->u.pvDummy2;
     }
     bool success = false;
-    QSemaphore* sem = xMutex->u.pSemaphore;
-    QMutex* mutex = xMutex->u.pMutex;
-    QRecursiveMutex* rec_mutex = xMutex->u.pRecursiveMutex;
+    CountingSemaphore* sem = xMutex->u.pSemaphore;
+    std::timed_mutex* mutex = xMutex->u.pMutex;
+    std::recursive_timed_mutex* rec_mutex = xMutex->u.pRecursiveMutex;
 
     switch (xMutex->ucQueueType) {
         case queueQUEUE_TYPE_RECURSIVE_MUTEX:
@@ -243,7 +304,7 @@ BaseType_t xQueueTakeMutexRecursive( QueueHandle_t xMutex,
                 rec_mutex->lock();
                 success = true;
             } else {
-                success = rec_mutex->tryLock(pdTICKS_TO_MS(xTicksToWait));
+                success = rec_mutex->try_lock_for(milliseconds(pdTICKS_TO_MS(xTicksToWait)));
             }
             break;
         case queueQUEUE_TYPE_MUTEX:
@@ -251,21 +312,21 @@ BaseType_t xQueueTakeMutexRecursive( QueueHandle_t xMutex,
                 mutex->lock();
                 success = true;
             } else {
-                success = mutex->tryLock(pdTICKS_TO_MS(xTicksToWait));
+                success = mutex->try_lock_for(milliseconds(pdTICKS_TO_MS(xTicksToWait)));
             }
             break;
         case queueQUEUE_TYPE_BINARY_SEMAPHORE:
         case queueQUEUE_TYPE_COUNTING_SEMAPHORE:
             if (xTicksToWait == portMAX_DELAY) {
-                sem->acquire(1);
+                sem->acquire();
                 success = true;
             } else {
-                success = sem->tryAcquire(1, pdTICKS_TO_MS(xTicksToWait));
+                success = sem->try_acquire_for(pdTICKS_TO_MS(xTicksToWait));
             }
             break;
         case queueQUEUE_TYPE_BASE:
         default:
-            qDebug() << "Unexpected queue type (xQueueTakeMutexRecursive) " << xMutex->ucQueueType << "; Acceptable types are: " << queueQUEUE_TYPE_RECURSIVE_MUTEX;
+            printf("Unexpected queue type (xQueueTakeMutexRecursive) %d\n", xMutex->ucQueueType);
             abort();
             return pdFAIL;
     }
@@ -282,19 +343,19 @@ BaseType_t xQueueSemaphoreTake( QueueHandle_t xQueue,
         StaticQueue_t* xQueue_static = (StaticQueue_t*)xQueue;
         xQueue = (QueueHandle_t)xQueue_static->u.pvDummy2;
     }
-    QSemaphore* sem = xQueue->u.pSemaphore;
-    QMutex* mutex = xQueue->u.pMutex;
-    QRecursiveMutex* rec_mutex = xQueue->u.pRecursiveMutex;
+    CountingSemaphore* sem = xQueue->u.pSemaphore;
+    std::timed_mutex* mutex = xQueue->u.pMutex;
+    std::recursive_timed_mutex* rec_mutex = xQueue->u.pRecursiveMutex;
     bool success = false;
 
     switch (xQueue->ucQueueType) {
         case queueQUEUE_TYPE_BINARY_SEMAPHORE:
         case queueQUEUE_TYPE_COUNTING_SEMAPHORE:
             if (xTicksToWait == portMAX_DELAY) {
-                sem->acquire(1);
+                sem->acquire();
                 success = true;
             } else {
-                success = sem->tryAcquire(1, pdTICKS_TO_MS(xTicksToWait));
+                success = sem->try_acquire_for(pdTICKS_TO_MS(xTicksToWait));
             }
             break;
         case queueQUEUE_TYPE_MUTEX:
@@ -302,7 +363,7 @@ BaseType_t xQueueSemaphoreTake( QueueHandle_t xQueue,
                 mutex->lock();
                 success = true;
             } else {
-                success = mutex->tryLock(pdTICKS_TO_MS(xTicksToWait));
+                success = mutex->try_lock_for(milliseconds(pdTICKS_TO_MS(xTicksToWait)));
             }
             break;
         case queueQUEUE_TYPE_RECURSIVE_MUTEX:
@@ -310,17 +371,12 @@ BaseType_t xQueueSemaphoreTake( QueueHandle_t xQueue,
                 rec_mutex->lock();
                 success = true;
             } else {
-                success = rec_mutex->tryLock(pdTICKS_TO_MS(xTicksToWait));
+                success = rec_mutex->try_lock_for(milliseconds(pdTICKS_TO_MS(xTicksToWait)));
             }
             break;
         case queueQUEUE_TYPE_BASE:
         default:
-            qDebug() << "Unexpected queue type (xQueueSemaphoreTake) " << xQueue->ucQueueType
-                     << "; Acceptable types are: "
-                     << queueQUEUE_TYPE_BINARY_SEMAPHORE << ","
-                     << queueQUEUE_TYPE_COUNTING_SEMAPHORE << ","
-                     << queueQUEUE_TYPE_MUTEX << ","
-                     << queueQUEUE_TYPE_RECURSIVE_MUTEX;
+            printf("Unexpected queue type (xQueueSemaphoreTake) %d\n", xQueue->ucQueueType);
             abort();
             return pdFAIL;
     }
@@ -338,10 +394,10 @@ BaseType_t xQueueGenericSend( QueueHandle_t xQueue,
         StaticQueue_t* xQueue_static = (StaticQueue_t*)xQueue;
         xQueue = (QueueHandle_t)xQueue_static->u.pvDummy2;
     }
-    QSemaphore* sem = xQueue->u.pSemaphore;
+    CountingSemaphore* sem = xQueue->u.pSemaphore;
     TimedDeque *queue = xQueue->u.pQueue;
-    QMutex* mutex = xQueue->u.pMutex;
-    QRecursiveMutex* rec_mutex = xQueue->u.pRecursiveMutex;
+    std::timed_mutex* mutex = xQueue->u.pMutex;
+    std::recursive_timed_mutex* rec_mutex = xQueue->u.pRecursiveMutex;
     bool success = false;
     void* element = NULL;
 
@@ -377,11 +433,11 @@ BaseType_t xQueueGenericSend( QueueHandle_t xQueue,
             break;
         case queueQUEUE_TYPE_COUNTING_SEMAPHORE:
         case queueQUEUE_TYPE_BINARY_SEMAPHORE:
-            sem->release(1);
+            sem->release();
             success = true;
             break;
         default:
-            qDebug() << "Unexpected queue type (xQueueGenericSend) " << xQueue->ucQueueType;
+            printf("Unexpected queue type (xQueueGenericSend) %d\n ", xQueue->ucQueueType);
             abort();
             return pdFAIL;
     }
@@ -435,9 +491,7 @@ BaseType_t xQueueReceive(QueueHandle_t xQueue,
         case queueQUEUE_TYPE_MUTEX:
         case queueQUEUE_TYPE_RECURSIVE_MUTEX:
         default:
-            qDebug() << "Unexpected queue type (xQueueReceive) " << xQueue->ucQueueType
-                     << "; Acceptable types are: "
-                     << queueQUEUE_TYPE_BASE;
+            printf("Unexpected queue type (xQueueReceive) %d\n", xQueue->ucQueueType);
             abort();
             return pdFAIL;
     }
@@ -467,9 +521,9 @@ BaseType_t xQueueGiveMutexRecursive( QueueHandle_t xMutex )
         StaticQueue_t* xQueue_static = (StaticQueue_t*)xMutex;
         xMutex = (QueueHandle_t)xQueue_static->u.pvDummy2;
     }
-    QRecursiveMutex* mutex = xMutex->u.pRecursiveMutex;
-    QRecursiveMutex* rec_mutex = xMutex->u.pRecursiveMutex;
-    QSemaphore* sem = xMutex->u.pSemaphore;
+    std::timed_mutex* mutex = xMutex->u.pMutex;
+    std::recursive_timed_mutex* rec_mutex = xMutex->u.pRecursiveMutex;
+    CountingSemaphore* sem = xMutex->u.pSemaphore;
     bool success = false;
 
     switch (xMutex->ucQueueType)
@@ -484,15 +538,11 @@ BaseType_t xQueueGiveMutexRecursive( QueueHandle_t xMutex )
             break;
         case queueQUEUE_TYPE_BINARY_SEMAPHORE:
         case queueQUEUE_TYPE_COUNTING_SEMAPHORE:
-            sem->release(1);
+            sem->release();
             break;
         case queueQUEUE_TYPE_BASE:
         default:
-            qDebug() << "Unexpected queue type (xQueueReceive) " << xMutex->ucQueueType
-                     << "; Acceptable types are: "
-                     << queueQUEUE_TYPE_RECURSIVE_MUTEX << ","
-                     << queueQUEUE_TYPE_BINARY_SEMAPHORE << ","
-                     << queueQUEUE_TYPE_COUNTING_SEMAPHORE;
+            printf("Unexpected queue type (xQueueReceive) %d\n", xMutex->ucQueueType);
             abort();
             return pdFAIL;
     }
@@ -509,9 +559,9 @@ BaseType_t xQueueGiveFromISR(QueueHandle_t xQueue,
         StaticQueue_t* xQueue_static = (StaticQueue_t*)xQueue;
         xQueue = (QueueHandle_t)xQueue_static->u.pvDummy2;
     }
-    QSemaphore* sem = xQueue->u.pSemaphore;
-    QMutex* mutex = xQueue->u.pMutex;
-    QRecursiveMutex* rec_mutex = xQueue->u.pRecursiveMutex;
+    CountingSemaphore* sem = xQueue->u.pSemaphore;
+    std::timed_mutex* mutex = xQueue->u.pMutex;
+    std::recursive_timed_mutex* rec_mutex = xQueue->u.pRecursiveMutex;
     bool success = false;
 
     switch (xQueue->ucQueueType)
@@ -526,17 +576,12 @@ BaseType_t xQueueGiveFromISR(QueueHandle_t xQueue,
             break;
         case queueQUEUE_TYPE_BINARY_SEMAPHORE:
         case queueQUEUE_TYPE_COUNTING_SEMAPHORE:
-            sem->release(1);
+            sem->release();
             success = true;
             break;
         case queueQUEUE_TYPE_BASE:
         default:
-            qDebug() << "Unexpected queue type (xQueueGiveFromISR) " << xQueue->ucQueueType
-                     << "; Acceptable types are: "
-                     << queueQUEUE_TYPE_RECURSIVE_MUTEX << ""
-                     << queueQUEUE_TYPE_BINARY_SEMAPHORE << ""
-                     << queueQUEUE_TYPE_COUNTING_SEMAPHORE << ""
-                     << queueQUEUE_TYPE_MUTEX;
+            printf("Unexpected queue type (xQueueGiveFromISR) %d\n", xQueue->ucQueueType);
             abort();
             return pdFAIL;
     }
@@ -558,9 +603,9 @@ UBaseType_t uxQueueMessagesWaiting( const QueueHandle_t xQueue )
         xQueueInt = xQueue;
     }
     TimedDeque *queue = xQueue->u.pQueue;
-    QSemaphore* sem = xQueueInt->u.pSemaphore;
-    QMutex* mutex = xQueueInt->u.pMutex;
-    QRecursiveMutex* rec_mutex = xQueueInt->u.pRecursiveMutex;
+    CountingSemaphore* sem = xQueueInt->u.pSemaphore;
+    std::timed_mutex* mutex = xQueueInt->u.pMutex;
+    std::recursive_timed_mutex* rec_mutex = xQueueInt->u.pRecursiveMutex;
     UBaseType_t retval = 0;
 
     switch (xQueue->ucQueueType)
@@ -575,12 +620,7 @@ UBaseType_t uxQueueMessagesWaiting( const QueueHandle_t xQueue )
         case queueQUEUE_TYPE_RECURSIVE_MUTEX:
         case queueQUEUE_TYPE_MUTEX:
         default:
-            qDebug() << "Unexpected queue type (xQueueGiveFromISR) " << xQueue->ucQueueType
-                     << "; Acceptable types are: "
-                     << queueQUEUE_TYPE_RECURSIVE_MUTEX << ""
-                     << queueQUEUE_TYPE_BINARY_SEMAPHORE << ""
-                     << queueQUEUE_TYPE_COUNTING_SEMAPHORE << ""
-                     << queueQUEUE_TYPE_MUTEX;
+            printf("Unexpected queue type (xQueueGiveFromISR) %d\n", xQueue->ucQueueType);
             abort();
             return pdFAIL;
     }
@@ -601,7 +641,7 @@ void vQueueDelete( QueueHandle_t xQueue )
 BaseType_t xQueueAddToSet( QueueSetMemberHandle_t xQueueOrSemaphore,
                           QueueSetHandle_t xQueueSet )
 {
-    qDebug() << "xQueueAddToSet not implemented";
+    printf("xQueueAddToSet not implemented\n");
     abort();
     return pdPASS;
 }
@@ -609,7 +649,7 @@ BaseType_t xQueueAddToSet( QueueSetMemberHandle_t xQueueOrSemaphore,
 BaseType_t xQueueRemoveFromSet( QueueSetMemberHandle_t xQueueOrSemaphore,
                                QueueSetHandle_t xQueueSet )
 {
-    qDebug() << "xQueueRemoveFromSet not implemented";
+    printf("xQueueRemoveFromSet not implemented\n");
     abort();
     return pdPASS;
 }
