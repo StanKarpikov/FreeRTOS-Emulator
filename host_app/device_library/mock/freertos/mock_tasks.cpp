@@ -63,7 +63,7 @@ void vTaskStartScheduler( void )
 {
     while(true)
     {
-        sleep(10);
+        sleep(100000);
     };
 }
 
