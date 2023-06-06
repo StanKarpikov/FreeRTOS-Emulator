@@ -326,7 +326,7 @@ BaseType_t xQueueTakeMutexRecursive( QueueHandle_t xMutex,
             break;
         case queueQUEUE_TYPE_BASE:
         default:
-            printf("Unexpected queue type (xQueueTakeMutexRecursive) %d\n", xMutex->ucQueueType);
+            printf("Unexpected queue type (xQueueTakeMutexRecursive) %lu\n", xMutex->ucQueueType);
             abort();
             return pdFAIL;
     }
@@ -376,7 +376,7 @@ BaseType_t xQueueSemaphoreTake( QueueHandle_t xQueue,
             break;
         case queueQUEUE_TYPE_BASE:
         default:
-            printf("Unexpected queue type (xQueueSemaphoreTake) %d\n", xQueue->ucQueueType);
+            printf("Unexpected queue type (xQueueSemaphoreTake) %lu\n", xQueue->ucQueueType);
             abort();
             return pdFAIL;
     }
@@ -437,7 +437,7 @@ BaseType_t xQueueGenericSend( QueueHandle_t xQueue,
             success = true;
             break;
         default:
-            printf("Unexpected queue type (xQueueGenericSend) %d\n ", xQueue->ucQueueType);
+            printf("Unexpected queue type (xQueueGenericSend) %lu\n ", xQueue->ucQueueType);
             abort();
             return pdFAIL;
     }
@@ -491,7 +491,7 @@ BaseType_t xQueueReceive(QueueHandle_t xQueue,
         case queueQUEUE_TYPE_MUTEX:
         case queueQUEUE_TYPE_RECURSIVE_MUTEX:
         default:
-            printf("Unexpected queue type (xQueueReceive) %d\n", xQueue->ucQueueType);
+            printf("Unexpected queue type (xQueueReceive) %lu\n", xQueue->ucQueueType);
             abort();
             return pdFAIL;
     }
@@ -542,7 +542,7 @@ BaseType_t xQueueGiveMutexRecursive( QueueHandle_t xMutex )
             break;
         case queueQUEUE_TYPE_BASE:
         default:
-            printf("Unexpected queue type (xQueueReceive) %d\n", xMutex->ucQueueType);
+            printf("Unexpected queue type (xQueueReceive) %lu\n", xMutex->ucQueueType);
             abort();
             return pdFAIL;
     }
@@ -581,7 +581,7 @@ BaseType_t xQueueGiveFromISR(QueueHandle_t xQueue,
             break;
         case queueQUEUE_TYPE_BASE:
         default:
-            printf("Unexpected queue type (xQueueGiveFromISR) %d\n", xQueue->ucQueueType);
+            printf("Unexpected queue type (xQueueGiveFromISR) %lu\n", xQueue->ucQueueType);
             abort();
             return pdFAIL;
     }
@@ -620,7 +620,7 @@ UBaseType_t uxQueueMessagesWaiting( const QueueHandle_t xQueue )
         case queueQUEUE_TYPE_RECURSIVE_MUTEX:
         case queueQUEUE_TYPE_MUTEX:
         default:
-            printf("Unexpected queue type (xQueueGiveFromISR) %d\n", xQueue->ucQueueType);
+            printf("Unexpected queue type (xQueueGiveFromISR) %lu\n", xQueue->ucQueueType);
             abort();
             return pdFAIL;
     }
