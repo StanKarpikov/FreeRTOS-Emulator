@@ -409,11 +409,11 @@ BaseType_t xQueueGenericSend( QueueHandle_t xQueue,
             }
             switch(xCopyPosition){
                 case queueSEND_TO_BACK:
-                    success = queue->PushBack(pvItemToQueue, pdTICKS_TO_MS(xTicksToWait));
+                    success = queue->PushFront(pvItemToQueue, pdTICKS_TO_MS(xTicksToWait));
 //                    qDebug() << "PushBack to " << queue << " = " << *(uint32_t*)pvItemToQueue;
                     break;
                 case queueSEND_TO_FRONT:
-                    success = queue->PushFront(pvItemToQueue, pdTICKS_TO_MS(xTicksToWait));
+                    success = queue->PushBack(pvItemToQueue, pdTICKS_TO_MS(xTicksToWait));
 //                    qDebug() << "PushFront to " << queue << " = " << *(uint32_t*)pvItemToQueue;
                     break;
                 case queueOVERWRITE:

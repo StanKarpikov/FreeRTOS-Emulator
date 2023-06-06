@@ -35,7 +35,14 @@ public:
     {
         if(thread_started)
         {
-            pthread_kill(thread_id, SIGTERM);
+            if (thread_id == pthread_self())
+            {
+                pthread_exit(0);
+            }
+            else
+            {
+                pthread_kill(thread_id, SIGTERM);
+            }
             thread_started = false;
         }
         else
@@ -56,6 +63,7 @@ public:
 };
 
 static std::list<SimulatedThread*> thread_list = std::list<SimulatedThread*>();
+static std::list<SimulatedThread*> deleted_thread_list = std::list<SimulatedThread*>();
 
 portMUX_TYPE global_mux = SPINLOCK_INITIALIZER;
 
@@ -69,7 +77,12 @@ void vTaskStartScheduler( void )
 
 void vTaskDelay( const TickType_t xTicksToDelay )
 {
-    usleep(pdTICKS_TO_MS(xTicksToDelay)*1000);
+    TickType_t ticks = xTicksToDelay;
+//    if (ticks < 10)
+//    {
+//        ticks *= 10;
+//    }
+    usleep(pdTICKS_TO_MS(ticks)*1000);
 }
 
 BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
@@ -113,6 +126,10 @@ TaskHandle_t xTaskCreateStaticPinnedToCore( TaskFunction_t pvTaskCode,
 
 void vTaskDelete( TaskHandle_t xTaskToDelete )
 {
+    if(!xTaskToDelete)
+    {
+        xTaskToDelete = xTaskGetCurrentTaskHandle();
+    }
     SimulatedThread* thread = static_cast<SimulatedThread*>(xTaskToDelete);
 
     thread_list.erase(std::remove_if(thread_list.begin(), thread_list.end(),
@@ -122,8 +139,9 @@ void vTaskDelete( TaskHandle_t xTaskToDelete )
                                      }),
                                      thread_list.end());
     if (thread) {
+        deleted_thread_list.push_back(thread);
         thread->stop();
-        delete thread;
+        delete thread; /* TODO: We never reach this step if this is called from the running thread */
     }
 }
 
@@ -196,4 +214,35 @@ BaseType_t xTaskGetSchedulerState( void )
 extern "C" void heap_caps_enable_nonos_stack_heaps(void)
 {
     /* No need to implement */
+}
+
+extern "C" eTaskState eTaskGetState( TaskHandle_t xTask )
+{
+    SimulatedThread* thread = static_cast<SimulatedThread*>(xTask);
+    for(auto thread_check : deleted_thread_list)
+    {
+        if (thread_check == thread)
+        {
+            return eDeleted;
+        }
+    }
+    if (thread->thread_id == pthread_self())
+    {
+        return eRunning;
+    }
+    for(auto thread_check : thread_list)
+    {
+        if (thread_check == thread)
+        {
+            if(thread->thread_started)
+            {
+                return eReady;
+            }
+            else
+            {
+                return eSuspended;
+            }
+        }
+    }
+    return eInvalid;
 }
