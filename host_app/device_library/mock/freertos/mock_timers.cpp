@@ -6,6 +6,11 @@ extern "C"
     #include "freertos/timers.h"
 }
 
+struct tmrTimerControl
+{
+    void* timer;
+};
+
 TimerHandle_t xTimerCreate(const char* const pcTimerName,
                            const TickType_t xTimerPeriodInTicks,
                            const UBaseType_t uxAutoReload,
@@ -14,10 +19,16 @@ TimerHandle_t xTimerCreate(const char* const pcTimerName,
 {
     InternalTimerHandle* new_timer = new InternalTimerHandle(pdTICKS_TO_MS(xTimerPeriodInTicks),
                                                             uxAutoReload == pdFALSE,
-                                                            pxCallbackFunction,
+                                                            (callback_function_t)pxCallbackFunction,
                                                             nullptr,
                                                             pcTimerName);
+#if TIMERHANDLE_IS_TMRCONTROL
+    tmrTimerControl* tmr_control = new tmrTimerControl;
+    tmr_control->timer = new_timer;
+    return tmr_control;
+#else
     return new_timer;
+#endif
 }
 
 BaseType_t xTimerGenericCommand(TimerHandle_t xTimer,
@@ -26,8 +37,11 @@ BaseType_t xTimerGenericCommand(TimerHandle_t xTimer,
                                 BaseType_t* const pxHigherPriorityTaskWoken,
                                 const TickType_t xTicksToWait)
 {
+#if TIMERHANDLE_IS_TMRCONTROL
+    InternalTimerHandle* timerHandle = static_cast<InternalTimerHandle*>(xTimer->timer);
+#else
     InternalTimerHandle* timerHandle = static_cast<InternalTimerHandle*>(xTimer);
-
+#endif
     if (timerHandle) {
         switch (xCommandID) {
             case tmrCOMMAND_EXECUTE_CALLBACK_FROM_ISR:  // tmrCOMMAND_EXECUTE_CALLBACK_FROM_ISR

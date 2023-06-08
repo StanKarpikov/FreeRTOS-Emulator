@@ -256,14 +256,18 @@ extern void vPortExitCritical( portMUX_TYPE *mux );
 
 #ifndef PREVENT_DEEP_INCLUDES
     /* Include these headers here because some files are missing them */
-//    #include <lwip/ip4_addr.h>
-//    #include "esp_netif_types.h"
     #include "esp_timer.h"
-//    #include "esp_event_legacy.h"
-//    #include <string.h>
     #include "string_extra.h"
     #include "esp_idf_version.h"
+    #include "esp_bit_defs.h"
+    #include "esp_heap_caps.h"
 #endif
+
+#define os_task_switch_is_pended(_cpu_) (false)
+
+//#define BIT0 (1UL<<0)
+//#define BIT1 (1UL<<1)
+//#define BIT2 (1UL<<2)
 
 //#define configUSE_NEWLIB_REENTRANT 0
 

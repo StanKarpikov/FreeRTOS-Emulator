@@ -632,6 +632,50 @@ UBaseType_t uxQueueMessagesWaitingFromISR( const QueueHandle_t xQueue )
     return uxQueueMessagesWaiting( xQueue );
 }
 
+BaseType_t xQueueIsQueueEmpty( const QueueHandle_t xQueue )
+{
+    QueueHandle_t xQueueInt;
+    if(xQueue->u.pSemaphore == 0)
+    {
+            /* Static queue */
+            StaticQueue_t* xQueue_static = (StaticQueue_t*)xQueue;
+            xQueueInt = (QueueHandle_t)xQueue_static->u.pvDummy2;
+    }
+    else
+    {
+            xQueueInt = xQueue;
+    }
+    TimedDeque *queue = xQueue->u.pQueue;
+    CountingSemaphore* sem = xQueueInt->u.pSemaphore;
+    std::timed_mutex* mutex = xQueueInt->u.pMutex;
+    std::recursive_timed_mutex* rec_mutex = xQueueInt->u.pRecursiveMutex;
+    UBaseType_t retval = 0;
+
+    switch (xQueue->ucQueueType)
+    {
+    case queueQUEUE_TYPE_BASE:
+            retval = queue->number_of_elements();
+            retval = !((xQueueInt->uxLength - retval) == 0);
+            break;
+    case queueQUEUE_TYPE_BINARY_SEMAPHORE:
+    case queueQUEUE_TYPE_COUNTING_SEMAPHORE:
+            retval = !sem->available();
+            break;
+    case queueQUEUE_TYPE_RECURSIVE_MUTEX:
+    case queueQUEUE_TYPE_MUTEX:
+    default:
+            printf("Unexpected queue type (xQueueGiveFromISR) %lu\n", xQueue->ucQueueType);
+            abort();
+            return pdFAIL;
+    }
+    return retval;
+}
+
+BaseType_t xQueueIsQueueEmptyFromISR( const QueueHandle_t xQueue )
+{
+    return xQueueIsQueueEmpty(xQueue);
+}
+
 void vQueueDelete( QueueHandle_t xQueue )
 {
     delete xQueue->u.pQueue;

@@ -6,7 +6,7 @@
 #include <list>
 extern "C"
 {
-    #include "FreeRTOS.h"
+    #include "freertos/FreeRTOS.h"
     #include "freertos/task.h"
     #include "portmacro.h"
 }
@@ -62,6 +62,11 @@ public:
     std::string _name;
 };
 
+typedef struct tskTaskControlBlock       /* The old naming convention is used to prevent breaking kernel aware debuggers. */
+{
+    SimulatedThread* thread;
+} tskTCB;
+
 static std::list<SimulatedThread*> thread_list = std::list<SimulatedThread*>();
 static std::list<SimulatedThread*> deleted_thread_list = std::list<SimulatedThread*>();
 
@@ -78,10 +83,6 @@ void vTaskStartScheduler( void )
 void vTaskDelay( const TickType_t xTicksToDelay )
 {
     TickType_t ticks = xTicksToDelay;
-//    if (ticks < 10)
-//    {
-//        ticks *= 10;
-//    }
     usleep(pdTICKS_TO_MS(ticks)*1000);
 }
 
@@ -104,7 +105,11 @@ BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
     thread->start();
     if(pvCreatedTask)
     {
+#if TASKHANDLE_IS_TCB
+//        *pvCreatedTask.thread = (void*)thread;
+#else
         *pvCreatedTask = thread;
+#endif
     }
 
     return pdPASS;
@@ -130,8 +135,11 @@ void vTaskDelete( TaskHandle_t xTaskToDelete )
     {
         xTaskToDelete = xTaskGetCurrentTaskHandle();
     }
+#if TASKHANDLE_IS_TCB
+    SimulatedThread* thread = xTaskToDelete->thread;
+#else
     SimulatedThread* thread = static_cast<SimulatedThread*>(xTaskToDelete);
-
+#endif
     thread_list.erase(std::remove_if(thread_list.begin(), thread_list.end(),
                                      [thread](SimulatedThread* check_thread)
                                      {
@@ -194,7 +202,11 @@ TaskHandle_t xTaskGetCurrentTaskHandle( void )
     {
         if (thread->thread_id == pthread_self())
         {
+#if TASKHANDLE_IS_TCB
+//            return thread->thread;
+#else
             return thread;
+#endif
         }
     }
     return NULL;
@@ -218,7 +230,11 @@ extern "C" void heap_caps_enable_nonos_stack_heaps(void)
 
 extern "C" eTaskState eTaskGetState( TaskHandle_t xTask )
 {
+#if TASKHANDLE_IS_TCB
+    SimulatedThread* thread = xTask->thread;
+#else
     SimulatedThread* thread = static_cast<SimulatedThread*>(xTask);
+#endif
     for(auto thread_check : deleted_thread_list)
     {
         if (thread_check == thread)
