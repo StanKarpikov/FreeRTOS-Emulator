@@ -4,6 +4,7 @@
 #include <thread>
 #include <string>
 #include <list>
+#include <unistd>
 extern "C"
 {
     #include "freertos/FreeRTOS.h"
