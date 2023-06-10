@@ -287,6 +287,10 @@ QueueHandle_t xQueueCreateCountingSemaphore( const UBaseType_t uxMaxCount,
 BaseType_t xQueueTakeMutexRecursive( QueueHandle_t xMutex,
                              TickType_t xTicksToWait )
 {
+    if(!xMutex)
+    {
+        abort();
+    }
     if(xMutex->u.pSemaphore == 0)
     {
         /* Static queue */
@@ -337,6 +341,10 @@ BaseType_t xQueueTakeMutexRecursive( QueueHandle_t xMutex,
 BaseType_t xQueueSemaphoreTake( QueueHandle_t xQueue,
                                TickType_t xTicksToWait )
 {
+    if(!xQueue)
+    {
+            abort();
+    }
     if(xQueue->u.pSemaphore == 0)
     {
         /* Static queue */
@@ -388,6 +396,10 @@ BaseType_t xQueueGenericSend( QueueHandle_t xQueue,
                              TickType_t xTicksToWait,
                              const BaseType_t xCopyPosition )
 {
+    if(!xQueue)
+    {
+            abort();
+    }
     if(xQueue->u.pSemaphore == 0)
     {
         /* Static queue */
@@ -457,6 +469,10 @@ BaseType_t xQueueReceive(QueueHandle_t xQueue,
                          void * const pvBuffer,
                          TickType_t xTicksToWait )
 {
+    if(!xQueue)
+    {
+            abort();
+    }
     if(xQueue->u.pSemaphore == 0)
     {
         /* Static queue */
@@ -515,6 +531,10 @@ QueueHandle_t xQueueCreateMutexStatic( const uint8_t ucQueueType,
 
 BaseType_t xQueueGiveMutexRecursive( QueueHandle_t xMutex )
 {
+    if(!xMutex)
+    {
+            abort();
+    }
     if(xMutex->u.pSemaphore == 0)
     {
         /* Static queue */
@@ -553,6 +573,10 @@ BaseType_t xQueueGiveMutexRecursive( QueueHandle_t xMutex )
 BaseType_t xQueueGiveFromISR(QueueHandle_t xQueue,
                              BaseType_t * const pxHigherPriorityTaskWoken )
 {
+    if(!xQueue)
+    {
+            abort();
+    }
     if(xQueue->u.pSemaphore == 0)
     {
         /* Static queue */
@@ -591,6 +615,10 @@ BaseType_t xQueueGiveFromISR(QueueHandle_t xQueue,
 
 UBaseType_t uxQueueMessagesWaiting( const QueueHandle_t xQueue )
 {
+    if(!xQueue)
+    {
+        abort();
+    }
     QueueHandle_t xQueueInt;
     if(xQueue->u.pSemaphore == 0)
     {
@@ -634,6 +662,10 @@ UBaseType_t uxQueueMessagesWaitingFromISR( const QueueHandle_t xQueue )
 
 BaseType_t xQueueIsQueueEmpty( const QueueHandle_t xQueue )
 {
+    if(!xQueue)
+    {
+            abort();
+    }
     QueueHandle_t xQueueInt;
     if(xQueue->u.pSemaphore == 0)
     {
@@ -678,6 +710,10 @@ BaseType_t xQueueIsQueueEmptyFromISR( const QueueHandle_t xQueue )
 
 void vQueueDelete( QueueHandle_t xQueue )
 {
+    if(!xQueue)
+    {
+            abort();
+    }
     delete xQueue->u.pQueue;
     delete xQueue;
 }
