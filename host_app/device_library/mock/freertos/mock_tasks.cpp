@@ -86,9 +86,9 @@ void vTaskDelay( const TickType_t xTicksToDelay )
     usleep(pdTICKS_TO_MS(ticks)*1000);
 }
 
-BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
+extern "C" BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
                                    const char * const pcName,
-                                   const uint32_t usStackDepth,
+                                   const configSTACK_DEPTH_TYPE usStackDepth,
                                    void * const pvParameters,
                                    UBaseType_t uxPriority,
                                    TaskHandle_t * const pvCreatedTask,
@@ -115,7 +115,7 @@ BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
     return pdPASS;
 }
 
-TaskHandle_t xTaskCreateStaticPinnedToCore( TaskFunction_t pvTaskCode,
+extern "C" TaskHandle_t xTaskCreateStaticPinnedToCore( TaskFunction_t pvTaskCode,
                                            const char * const pcName,
                                            const uint32_t ulStackDepth,
                                            void * const pvParameters,
@@ -129,7 +129,7 @@ TaskHandle_t xTaskCreateStaticPinnedToCore( TaskFunction_t pvTaskCode,
     return pvCreatedTask;
 }
 
-void vTaskDelete( TaskHandle_t xTaskToDelete )
+extern "C" void vTaskDelete( TaskHandle_t xTaskToDelete )
 {
     if(!xTaskToDelete)
     {
