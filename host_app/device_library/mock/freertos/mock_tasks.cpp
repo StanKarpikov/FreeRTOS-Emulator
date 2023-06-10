@@ -12,7 +12,7 @@ extern "C"
 }
 #include <signal.h>
 
-class SimulatedThread
+struct tskTaskControlBlock
 {
 public:
     TaskFunction_t taskCode;
@@ -28,7 +28,7 @@ public:
 
     void start(void)
     {
-        worker = std::thread(&SimulatedThread::run, this);
+        worker = std::thread(&tskTaskControlBlock::run, this);
     }
 
     void stop(void)
@@ -62,13 +62,8 @@ public:
     std::string _name;
 };
 
-typedef struct tskTaskControlBlock       /* The old naming convention is used to prevent breaking kernel aware debuggers. */
-{
-    SimulatedThread* thread;
-} tskTCB;
-
-static std::list<SimulatedThread*> thread_list = std::list<SimulatedThread*>();
-static std::list<SimulatedThread*> deleted_thread_list = std::list<SimulatedThread*>();
+static std::list<tskTaskControlBlock*> thread_list = std::list<tskTaskControlBlock*>();
+static std::list<tskTaskControlBlock*> deleted_thread_list = std::list<tskTaskControlBlock*>();
 
 portMUX_TYPE global_mux = SPINLOCK_INITIALIZER;
 
@@ -94,7 +89,8 @@ extern "C" BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
                                    TaskHandle_t * const pvCreatedTask,
                                    const BaseType_t xCoreID)
 {
-    SimulatedThread* thread = new SimulatedThread();
+    tskTaskControlBlock* thread = new tskTaskControlBlock();
+
     thread->taskCode = pvTaskCode;
     thread->parameters = pvParameters;
     thread->createdTask = pvCreatedTask;
@@ -105,11 +101,7 @@ extern "C" BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
     thread->start();
     if(pvCreatedTask)
     {
-#if TASKHANDLE_IS_TCB
-//        *pvCreatedTask.thread = (void*)thread;
-#else
         *pvCreatedTask = thread;
-#endif
     }
 
     return pdPASS;
@@ -134,14 +126,14 @@ extern "C" void vTaskDelete( TaskHandle_t xTaskToDelete )
     if(!xTaskToDelete)
     {
         xTaskToDelete = xTaskGetCurrentTaskHandle();
+        if(!xTaskToDelete)
+        {
+            abort();
+        }
     }
-#if TASKHANDLE_IS_TCB
-    SimulatedThread* thread = xTaskToDelete->thread;
-#else
-    SimulatedThread* thread = static_cast<SimulatedThread*>(xTaskToDelete);
-#endif
+    tskTaskControlBlock* thread = xTaskToDelete;
     thread_list.erase(std::remove_if(thread_list.begin(), thread_list.end(),
-                                     [thread](SimulatedThread* check_thread)
+                                     [thread](tskTaskControlBlock* check_thread)
                                      {
                                          return check_thread == thread;
                                      }),
@@ -149,14 +141,14 @@ extern "C" void vTaskDelete( TaskHandle_t xTaskToDelete )
     if (thread) {
         deleted_thread_list.push_back(thread);
         thread->stop();
-        delete thread; /* TODO: We never reach this step if this is called from the running thread */
+        delete xTaskToDelete; /* TODO: We never reach this step if this is called from the running thread */
     }
 }
 
 void terminateAllTasks(void)
 {
     thread_list.erase(std::remove_if(thread_list.begin(), thread_list.end(),
-                                     [](SimulatedThread* thread)
+                                     [](tskTaskControlBlock* thread)
                                      {
                                          thread->stop();
                                          delete thread;
@@ -202,11 +194,7 @@ TaskHandle_t xTaskGetCurrentTaskHandle( void )
     {
         if (thread->thread_id == pthread_self())
         {
-#if TASKHANDLE_IS_TCB
-//            return thread->thread;
-#else
             return thread;
-#endif
         }
     }
     return NULL;
@@ -230,11 +218,11 @@ extern "C" void heap_caps_enable_nonos_stack_heaps(void)
 
 extern "C" eTaskState eTaskGetState( TaskHandle_t xTask )
 {
-#if TASKHANDLE_IS_TCB
-    SimulatedThread* thread = xTask->thread;
-#else
-    SimulatedThread* thread = static_cast<SimulatedThread*>(xTask);
-#endif
+    if (!xTask)
+    {
+        return eRunning;
+    }
+    tskTaskControlBlock* thread = xTask;
     for(auto thread_check : deleted_thread_list)
     {
         if (thread_check == thread)
