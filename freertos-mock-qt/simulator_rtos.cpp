@@ -1,6 +1,6 @@
 extern "C" {
-#include "FreeRTOS.h"
-#include "task.h"
+    #include "FreeRTOS.h"
+    #include "task.h"
 }
 #include "simulator_rtos.h"
 

@@ -22,6 +22,4 @@ protected:
     void run();
 };
 
-extern SimulatorRTOS rtos;
-
 #endif // SIMULATOR_RTOS_H

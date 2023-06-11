@@ -46,6 +46,7 @@ int main(int argc, char *argv[])
                 1,
                 NULL);
 
+    /* Starts vTaskStartScheduler() in a parallel thread */
     auto rtos = SimulatorRTOS::instance();
     rtos->start();
 
