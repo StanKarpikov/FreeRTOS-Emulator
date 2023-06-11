@@ -1,47 +1,37 @@
-#include "simulator_rtos.h"
 #include "internal_timer.h"
 extern "C"
 {
-    #include "freertos/FreeRTOS.h"
-    #include "freertos/timers.h"
+    #include "FreeRTOS.h"
+    #include "timers.h"
 }
 
 struct tmrTimerControl
 {
-    void* timer;
+    InternalTimerHandle timer;
 };
-
-TimerHandle_t xTimerCreate(const char* const pcTimerName,
+extern "C" TimerHandle_t xTimerCreate(const char* const pcTimerName,
                            const TickType_t xTimerPeriodInTicks,
-                           const UBaseType_t uxAutoReload,
+                           const BaseType_t uxAutoReload,
                            void* const pvTimerID,
                            TimerCallbackFunction_t pxCallbackFunction)
 {
-    InternalTimerHandle* new_timer = new InternalTimerHandle(pdTICKS_TO_MS(xTimerPeriodInTicks),
+    tmrTimerControl* tmr_control = new tmrTimerControl;
+    tmr_control->timer = InternalTimerHandle(pdTICKS_TO_MS(xTimerPeriodInTicks),
                                                             uxAutoReload == pdFALSE,
                                                             (callback_function_t)pxCallbackFunction,
                                                             nullptr,
                                                             pcTimerName);
-#if TIMERHANDLE_IS_TMRCONTROL
-    tmrTimerControl* tmr_control = new tmrTimerControl;
-    tmr_control->timer = new_timer;
     return tmr_control;
-#else
-    return new_timer;
-#endif
 }
 
-BaseType_t xTimerGenericCommand(TimerHandle_t xTimer,
+extern "C" BaseType_t xTimerGenericCommand(TimerHandle_t xTimer,
                                 const BaseType_t xCommandID,
                                 const TickType_t xOptionalValue,
                                 BaseType_t* const pxHigherPriorityTaskWoken,
                                 const TickType_t xTicksToWait)
 {
-#if TIMERHANDLE_IS_TMRCONTROL
-    InternalTimerHandle* timerHandle = static_cast<InternalTimerHandle*>(xTimer->timer);
-#else
-    InternalTimerHandle* timerHandle = static_cast<InternalTimerHandle*>(xTimer);
-#endif
+    InternalTimerHandle* timerHandle = &xTimer->timer;
+
     if (timerHandle) {
         switch (xCommandID) {
             case tmrCOMMAND_EXECUTE_CALLBACK_FROM_ISR:  // tmrCOMMAND_EXECUTE_CALLBACK_FROM_ISR

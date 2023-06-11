@@ -4,14 +4,18 @@
 #include <thread>
 #include <string>
 #include <list>
-#include <unistd>
+#include <unistd.h>
 extern "C"
 {
-    #include "freertos/FreeRTOS.h"
-    #include "freertos/task.h"
+    #include "FreeRTOS.h"
+    #include "task.h"
     #include "portmacro.h"
 }
 #include <signal.h>
+
+#if ESP_PLATFORM
+portMUX_TYPE global_mux = SPINLOCK_INITIALIZER;
+#endif
 
 struct tskTaskControlBlock
 {
@@ -66,8 +70,6 @@ public:
 static std::list<tskTaskControlBlock*> thread_list = std::list<tskTaskControlBlock*>();
 static std::list<tskTaskControlBlock*> deleted_thread_list = std::list<tskTaskControlBlock*>();
 
-portMUX_TYPE global_mux = SPINLOCK_INITIALIZER;
-
 void vTaskStartScheduler( void )
 {
     while(true)
@@ -106,6 +108,16 @@ extern "C" BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
     }
 
     return pdPASS;
+}
+
+extern "C" BaseType_t xTaskCreate( TaskFunction_t pxTaskCode,
+                            const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+                            const configSTACK_DEPTH_TYPE usStackDepth,
+                            void * const pvParameters,
+                            UBaseType_t uxPriority,
+                            TaskHandle_t * const pxCreatedTask )
+{
+    return xTaskCreatePinnedToCore(pxTaskCode, pcName, usStackDepth, pvParameters, uxPriority, pxCreatedTask, 0);
 }
 
 extern "C" TaskHandle_t xTaskCreateStaticPinnedToCore( TaskFunction_t pvTaskCode,
@@ -160,22 +172,12 @@ void terminateAllTasks(void)
 
 TickType_t xTaskGetTickCount( void )
 {
-    return pdMS_TO_TICKS(esp_timer_get_time()/1000);
+    return pdMS_TO_TICKS(port_get_time_ms());
 }
 
 TickType_t xTaskGetTickCountFromISR( void )
 {
     return xTaskGetTickCount();
-}
-
-void vPortEnterCritical( portMUX_TYPE *mux, int timeout )
-{
-
-}
-
-void vPortExitCritical( portMUX_TYPE *mux )
-{
-
 }
 
 void vTaskSuspend( TaskHandle_t xTaskToSuspend )

@@ -1,7 +1,7 @@
 extern "C"
 {
-    #include "freertos/FreeRTOS.h"
-    #include "freertos/event_groups.h"
+    #include "FreeRTOS.h"
+    #include "event_groups.h"
 }
 #include <mutex>
 #include <condition_variable>

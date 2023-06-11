@@ -5,9 +5,9 @@
 
 extern "C"
 {
-    #include "freertos/FreeRTOS.h"
-    #include "freertos/queue.h"
-    #include "freertos/semphr.h"
+    #include "FreeRTOS.h"
+    #include "queue.h"
+    #include "semphr.h"
 }
 
 using namespace std::chrono;

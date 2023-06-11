@@ -1,0 +1,6 @@
+[submodule "examples/common/FreeRTOS-Kernel"]
+	path = examples/common/FreeRTOS-Kernel
+	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
+[submodule "freertos-mock/timer/cpptime"]
+	path = freertos-mock/timer/cpptime
+	url = https://github.com/eglimi/cpptime.git

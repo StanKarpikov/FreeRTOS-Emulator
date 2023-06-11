@@ -11,4 +11,6 @@ target_include_directories(
     freertos_mock
     SYSTEM PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/timer
+    ${CMAKE_CURRENT_SOURCE_DIR}/timer/cpptime
 )

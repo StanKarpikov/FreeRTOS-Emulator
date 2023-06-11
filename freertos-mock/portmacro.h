@@ -238,7 +238,7 @@ void vPortSetInterruptHandler( uint32_t ulInterruptNumber, uint32_t (*pvHandler)
 #define THREAD_IRQ_PRIO          QThread::TimeCriticalPriority
 
 /* ESP32 Modifications */
-
+#if ESP_PLATFORM
 #include "esp_attr.h"
 #include "soc/spinlock.h"
 
@@ -251,25 +251,43 @@ typedef spinlock_t                          portMUX_TYPE;               /**< Spi
 
 extern portMUX_TYPE global_mux;
 
-extern void vPortEnterCritical( portMUX_TYPE *mux, int timeout );
-extern void vPortExitCritical( portMUX_TYPE *mux );
+static inline void vPortEnterCritical( portMUX_TYPE *mux, int timeout )
+{
 
-#ifndef PREVENT_DEEP_INCLUDES
-    /* Include these headers here because some files are missing them */
-    #include "esp_timer.h"
-    #include "string_extra.h"
-    #include "esp_idf_version.h"
-    #include "esp_bit_defs.h"
-    #include "esp_heap_caps.h"
+}
+
+static inline void vPortExitCritical( portMUX_TYPE *mux )
+{
+
+}
+
+#include "esp_timer.h"
+
+static inline unsigned long port_get_time_ms(void)
+{
+    return esp_timer_get_time()/1000;
+}
+
+#else
+
+#include <time.h>
+
+static inline unsigned long port_get_time_ms(void)
+{
+    return time(NULL);
+}
+
 #endif
 
-#define os_task_switch_is_pended(_cpu_) (false)
-
-//#define BIT0 (1UL<<0)
-//#define BIT1 (1UL<<1)
-//#define BIT2 (1UL<<2)
-
-//#define configUSE_NEWLIB_REENTRANT 0
+/* Converts a time in milliseconds to a time in ticks.  This macro can be
+ * overridden by a macro of the same name defined in FreeRTOSConfig.h in case the
+ * definition here is not suitable for your application. */
+#ifndef pdMS_TO_TICKS
+    #define pdMS_TO_TICKS( xTimeInMs )    ( ( TickType_t ) ( ( ( TickType_t ) ( xTimeInMs ) * ( TickType_t ) configTICK_RATE_HZ ) / ( TickType_t ) 1000U ) )
+#endif
+#ifndef pdTICKS_TO_MS
+    #define pdTICKS_TO_MS( xTicks )       ( ( TickType_t ) ( ( uint64_t ) ( xTicks ) * 1000 / configTICK_RATE_HZ ) )
+#endif
 
 #endif
 
