@@ -214,11 +214,6 @@ BaseType_t xTaskGetSchedulerState( void )
     return taskSCHEDULER_RUNNING;
 }
 
-extern "C" void heap_caps_enable_nonos_stack_heaps(void)
-{
-    /* No need to implement */
-}
-
 extern "C" eTaskState eTaskGetState( TaskHandle_t xTask )
 {
     if (!xTask)
