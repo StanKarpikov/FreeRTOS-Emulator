@@ -13,7 +13,7 @@ void vTimerCallback( TimerHandle_t xTimer )
 void vTask1(void *pvParameters)
 {
     xTimer = xTimerCreate("Timer",
-                          1500,
+                          pdMS_TO_TICKS(1500),
                           pdTRUE,
                           ( void * ) 0,
                           vTimerCallback);
