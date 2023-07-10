@@ -1,3 +1,13 @@
+/**
+ * @file simulator_rtos.h
+ * @author Stanislav Karpikov
+ * @brief Mock layer for FreeRTOS, global scheduler control
+ */
+
+/*--------------------------------------------------------------
+                       INCLUDES
+--------------------------------------------------------------*/
+
 #ifndef SIMULATOR_RTOS_H
 #define SIMULATOR_RTOS_H
 
@@ -5,13 +15,17 @@
 #include <QTimer>
 #include <QQueue>
 
+/*--------------------------------------------------------------
+                       PUBLIC TYPES
+--------------------------------------------------------------*/
+
 class SimulatorRTOS : public QThread
 {
     Q_OBJECT
 public:
     SimulatorRTOS();
 
-    static SimulatorRTOS* instance(void)
+    static SimulatorRTOS *instance(void)
     {
         static SimulatorRTOS rtos;
         return &rtos;

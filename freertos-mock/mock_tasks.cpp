@@ -62,14 +62,14 @@ public:
 
     void process_events(void)
     {
-        if(!suspend_requested.try_lock())
+        if (!suspend_requested.try_lock())
         {
             task_suspended.notify_all();
             suspend_requested.lock();
         }
         suspend_requested.unlock();
 
-        if(!delete_requested.try_lock())
+        if (!delete_requested.try_lock())
         {
             stop();
         }
@@ -78,16 +78,16 @@ public:
 
     void suspend(void)
     {
-        if(thread_suspended)
+        if (thread_suspended)
         {
             return;
         }
         thread_suspended = true;
-        if(suspend_requested.try_lock())
+        if (suspend_requested.try_lock())
         {
             std::unique_lock<std::mutex> lock_suspended(task_suspended_mutex);
             milliseconds_type duration(WAIT_FOR_TASK_SUSPENDED_TIMEOUT);
-            if(task_suspended.wait_for(lock_suspended, duration) == std::cv_status::timeout)
+            if (task_suspended.wait_for(lock_suspended, duration) == std::cv_status::timeout)
             {
                 std::cout << "Error waiting for task suspention";
             }
@@ -107,7 +107,7 @@ public:
 
     void stop(void)
     {
-        if(thread_started)
+        if (thread_started)
         {
             if (thread_id == pthread_self())
             {
@@ -132,8 +132,8 @@ public:
     }
 
     TaskFunction_t taskCode;
-    void* parameters;
-    TaskHandle_t* createdTask;
+    void *parameters;
+    TaskHandle_t *createdTask;
     std::condition_variable task_suspended;
     std::mutex task_suspended_mutex;
 
@@ -154,18 +154,18 @@ static std::condition_variable tasks_deleted;
 static std::condition_variable request_task_deletion;
 static std::mutex task_deletion_mutex;
 static std::mutex task_management_mutex;
-static std::list<tskTaskControlBlock*> thread_list = std::list<tskTaskControlBlock*>();
-static std::list<tskTaskControlBlock*> deleted_thread_list = std::list<tskTaskControlBlock*>();
+static std::list<tskTaskControlBlock *> thread_list = std::list<tskTaskControlBlock *>();
+static std::list<tskTaskControlBlock *> deleted_thread_list = std::list<tskTaskControlBlock *>();
 
 /*--------------------------------------------------------------
                       PUBLIC FUNCTIONS
 --------------------------------------------------------------*/
 
-extern "C" void vTaskStartScheduler( void )
+extern "C" void vTaskStartScheduler(void)
 {
-    std::list<tskTaskControlBlock*> deleted_thread_list_copy;
-    std::list<tskTaskControlBlock*> thread_list_copy;
-    while(true)
+    std::list<tskTaskControlBlock *> deleted_thread_list_copy;
+    std::list<tskTaskControlBlock *> thread_list_copy;
+    while (true)
     {
         std::unique_lock<std::mutex> lock_del(task_deletion_mutex);
         request_task_deletion.wait(lock_del);
@@ -174,10 +174,10 @@ extern "C" void vTaskStartScheduler( void )
             deleted_thread_list_copy = deleted_thread_list;
             thread_list_copy = thread_list;
         }
-        for(auto thread : deleted_thread_list_copy)
+        for (auto thread : deleted_thread_list_copy)
         {
             bool found = (std::find(thread_list_copy.begin(), thread_list_copy.end(), thread) != thread_list_copy.end());
-            if(found)
+            if (found)
             {
                 thread->stop();
                 delete thread;
@@ -189,23 +189,23 @@ extern "C" void vTaskStartScheduler( void )
     };
 }
 
-extern "C" void vTaskDelay( const TickType_t xTicksToDelay )
+extern "C" void vTaskDelay(const TickType_t xTicksToDelay)
 {
     tskTaskControlBlock *task = xTaskGetCurrentTaskHandle();
     task->process_events();
     TickType_t ticks = xTicksToDelay;
-    usleep(pdTICKS_TO_MS(ticks)*1000);
+    usleep(pdTICKS_TO_MS(ticks) * 1000);
 }
 
-extern "C" BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
-                                   const char * const pcName,
-                                   const configSTACK_DEPTH_TYPE usStackDepth,
-                                   void * const pvParameters,
-                                   UBaseType_t uxPriority,
-                                   TaskHandle_t * const pvCreatedTask,
-                                   const BaseType_t xCoreID)
+extern "C" BaseType_t xTaskCreatePinnedToCore(TaskFunction_t pvTaskCode,
+                                              const char *const pcName,
+                                              const configSTACK_DEPTH_TYPE usStackDepth,
+                                              void *const pvParameters,
+                                              UBaseType_t uxPriority,
+                                              TaskHandle_t *const pvCreatedTask,
+                                              const BaseType_t xCoreID)
 {
-    tskTaskControlBlock* thread = new tskTaskControlBlock();
+    tskTaskControlBlock *thread = new tskTaskControlBlock();
 
     thread->taskCode = pvTaskCode;
     thread->parameters = pvParameters;
@@ -218,7 +218,7 @@ extern "C" BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
     }
 
     thread->start();
-    if(pvCreatedTask)
+    if (pvCreatedTask)
     {
         *pvCreatedTask = thread;
     }
@@ -226,37 +226,37 @@ extern "C" BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
     return pdPASS;
 }
 
-extern "C" TaskHandle_t xTaskCreateStaticPinnedToCore( TaskFunction_t pvTaskCode,
-                                           const char * const pcName,
-                                           const uint32_t ulStackDepth,
-                                           void * const pvParameters,
-                                           UBaseType_t uxPriority,
-                                           StackType_t * const pxStackBuffer,
-                                           StaticTask_t * const pxTaskBuffer,
-                                           const BaseType_t xCoreID )
+extern "C" TaskHandle_t xTaskCreateStaticPinnedToCore(TaskFunction_t pvTaskCode,
+                                                      const char *const pcName,
+                                                      const uint32_t ulStackDepth,
+                                                      void *const pvParameters,
+                                                      UBaseType_t uxPriority,
+                                                      StackType_t *const pxStackBuffer,
+                                                      StaticTask_t *const pxTaskBuffer,
+                                                      const BaseType_t xCoreID)
 {
     TaskHandle_t pvCreatedTask;
     xTaskCreatePinnedToCore(pvTaskCode, pcName, ulStackDepth, pvParameters, uxPriority, &pvCreatedTask, xCoreID);
     return pvCreatedTask;
 }
 
-extern "C" BaseType_t xTaskCreate( TaskFunction_t pxTaskCode,
-                            const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
-                            const configSTACK_DEPTH_TYPE usStackDepth,
-                            void * const pvParameters,
-                            UBaseType_t uxPriority,
-                            TaskHandle_t * const pxCreatedTask )
+extern "C" BaseType_t xTaskCreate(TaskFunction_t pxTaskCode,
+                                  const char *const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+                                  const configSTACK_DEPTH_TYPE usStackDepth,
+                                  void *const pvParameters,
+                                  UBaseType_t uxPriority,
+                                  TaskHandle_t *const pxCreatedTask)
 {
     return xTaskCreatePinnedToCore(pxTaskCode, pcName, usStackDepth, pvParameters, uxPriority, pxCreatedTask, 0);
 }
 
-extern "C" void vTaskDelete( TaskHandle_t xTaskToDelete )
+extern "C" void vTaskDelete(TaskHandle_t xTaskToDelete)
 {
     bool delete_self = false;
-    if(!xTaskToDelete)
+    if (!xTaskToDelete)
     {
         xTaskToDelete = xTaskGetCurrentTaskHandle();
-        if(!xTaskToDelete)
+        if (!xTaskToDelete)
         {
             abort();
         }
@@ -267,9 +267,9 @@ extern "C" void vTaskDelete( TaskHandle_t xTaskToDelete )
         deleted_thread_list.push_back(xTaskToDelete);
         request_task_deletion.notify_one();
     }
-    if(delete_self)
+    if (delete_self)
     {
-        while(1)
+        while (1)
         {
             /* Wait until deleted */
             xTaskToDelete->process_events();
@@ -285,38 +285,38 @@ extern "C" void vTaskDelete( TaskHandle_t xTaskToDelete )
 extern "C" void terminateAllTasks(void)
 {
     std::unique_lock<std::mutex> lk(task_management_mutex);
-    for(auto thread : thread_list)
+    for (auto thread : thread_list)
     {
         deleted_thread_list.push_back(thread);
     }
     request_task_deletion.notify_one();
 }
 
-extern "C" TickType_t xTaskGetTickCount( void )
+extern "C" TickType_t xTaskGetTickCount(void)
 {
     return pdMS_TO_TICKS(port_get_time_ms());
 }
 
-extern "C" TickType_t xTaskGetTickCountFromISR( void )
+extern "C" TickType_t xTaskGetTickCountFromISR(void)
 {
     return xTaskGetTickCount();
 }
 
-extern "C" void vTaskSuspend( TaskHandle_t xTaskToSuspend )
+extern "C" void vTaskSuspend(TaskHandle_t xTaskToSuspend)
 {
     /* This will only suspend the task on the next sleep call */
     xTaskToSuspend->suspend();
 }
 
-extern "C" void vTaskResume( TaskHandle_t xTaskToResume )
+extern "C" void vTaskResume(TaskHandle_t xTaskToResume)
 {
     xTaskToResume->resume();
 }
 
-extern "C" void vTaskSuspendAll( void )
+extern "C" void vTaskSuspendAll(void)
 {
     std::unique_lock<std::mutex> lk(task_management_mutex);
-    for(auto thread : thread_list)
+    for (auto thread : thread_list)
     {
         if (thread->thread_id == pthread_self())
         {
@@ -325,10 +325,10 @@ extern "C" void vTaskSuspendAll( void )
     }
 }
 
-extern "C" TaskHandle_t xTaskGetCurrentTaskHandle( void )
+extern "C" TaskHandle_t xTaskGetCurrentTaskHandle(void)
 {
     std::unique_lock<std::mutex> lk(task_management_mutex);
-    for(auto thread : thread_list)
+    for (auto thread : thread_list)
     {
         if (thread->thread_id == pthread_self())
         {
@@ -338,26 +338,26 @@ extern "C" TaskHandle_t xTaskGetCurrentTaskHandle( void )
     return NULL;
 }
 
-extern "C" TaskHandle_t xTaskGetIdleTaskHandleForCPU( UBaseType_t cpuid )
+extern "C" TaskHandle_t xTaskGetIdleTaskHandleForCPU(UBaseType_t cpuid)
 {
     /* No need to implement */
     return NULL;
 }
 
-extern "C" BaseType_t xTaskGetSchedulerState( void )
+extern "C" BaseType_t xTaskGetSchedulerState(void)
 {
     return taskSCHEDULER_RUNNING;
 }
 
-extern "C" eTaskState eTaskGetState( TaskHandle_t xTask )
+extern "C" eTaskState eTaskGetState(TaskHandle_t xTask)
 {
     std::unique_lock<std::mutex> lk(task_management_mutex);
     if (!xTask)
     {
         return eRunning;
     }
-    tskTaskControlBlock* thread = xTask;
-    for(auto thread_check : deleted_thread_list)
+    tskTaskControlBlock *thread = xTask;
+    for (auto thread_check : deleted_thread_list)
     {
         if (thread_check == thread)
         {
@@ -368,15 +368,15 @@ extern "C" eTaskState eTaskGetState( TaskHandle_t xTask )
     {
         return eRunning;
     }
-    for(auto thread_check : thread_list)
+    for (auto thread_check : thread_list)
     {
         if (thread_check == thread)
         {
-            if(thread->thread_suspended)
+            if (thread->thread_suspended)
             {
                 return eSuspended;
             }
-            if(thread->thread_started)
+            if (thread->thread_started)
             {
                 return eReady;
             }
@@ -391,15 +391,15 @@ extern "C" UBaseType_t uxTaskGetNumberOfTasks(void)
     return thread_list.size();
 }
 
-extern "C" UBaseType_t uxTaskGetSystemState( TaskStatus_t * const pxTaskStatusArray,
-                                 const UBaseType_t uxArraySize,
-                                 uint32_t * const pulTotalRunTime )
+extern "C" UBaseType_t uxTaskGetSystemState(TaskStatus_t *const pxTaskStatusArray,
+                                            const UBaseType_t uxArraySize,
+                                            uint32_t *const pulTotalRunTime)
 
 {
     /* TODO: This mutex can cause a dead lock because of eTaskGetState() */
     /* std::unique_lock<std::mutex> lk(task_management_mutex); */
-    int i=0;
-    for(auto thread_check : thread_list)
+    int i = 0;
+    for (auto thread_check : thread_list)
     {
         pxTaskStatusArray[i].pcTaskName = thread_check->_name.c_str();
         pxTaskStatusArray[i].xTaskNumber = i;

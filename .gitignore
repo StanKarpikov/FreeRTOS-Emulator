@@ -1,4 +1,5 @@
 .qtc_clangd
+.cache
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles
