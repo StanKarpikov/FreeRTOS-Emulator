@@ -1,3 +1,13 @@
+/**
+ * @file mock_timers.cpp
+ * @author Stanislav Karpikov
+ * @brief Mock layer for FreeRTOS timers file
+ */
+
+/*--------------------------------------------------------------
+                       INCLUDES
+--------------------------------------------------------------*/
+
 #include "internal_timer.h"
 extern "C"
 {
@@ -5,10 +15,18 @@ extern "C"
     #include "timers.h"
 }
 
+/*--------------------------------------------------------------
+                       PRIVATE TYPES
+--------------------------------------------------------------*/
+
 struct tmrTimerControl
 {
-    InternalTimerHandle timer;
+    void* timer;
 };
+
+/*--------------------------------------------------------------
+                       PUBLIC FUNCTIONS
+--------------------------------------------------------------*/
 
 extern "C" TimerHandle_t xTimerCreate(const char* const pcTimerName,
                            const TickType_t xTimerPeriodInTicks,
@@ -16,12 +34,14 @@ extern "C" TimerHandle_t xTimerCreate(const char* const pcTimerName,
                            void* const pvTimerID,
                            TimerCallbackFunction_t pxCallbackFunction)
 {
-    tmrTimerControl* tmr_control = new tmrTimerControl;
-    tmr_control->timer = InternalTimerHandle(pdTICKS_TO_MS(xTimerPeriodInTicks),
+    InternalTimerHandle* new_timer = new InternalTimerHandle(pdTICKS_TO_MS(xTimerPeriodInTicks),
                                                             uxAutoReload == pdFALSE,
                                                             (callback_function_t)pxCallbackFunction,
                                                             nullptr,
                                                             pcTimerName);
+    tmrTimerControl* tmr_control = new tmrTimerControl;
+    tmr_control->timer = new_timer;
+    return tmr_control;
     return tmr_control;
 }
 
@@ -31,12 +51,12 @@ extern "C" BaseType_t xTimerGenericCommand(TimerHandle_t xTimer,
                                 BaseType_t* const pxHigherPriorityTaskWoken,
                                 const TickType_t xTicksToWait)
 {
-    InternalTimerHandle* timerHandle = &xTimer->timer;
+    InternalTimerHandle* timerHandle = static_cast<InternalTimerHandle*>(xTimer->timer);
 
     if (timerHandle) {
         switch (xCommandID) {
-            case tmrCOMMAND_EXECUTE_CALLBACK_FROM_ISR:  // tmrCOMMAND_EXECUTE_CALLBACK_FROM_ISR
-            case tmrCOMMAND_EXECUTE_CALLBACK:  // tmrCOMMAND_EXECUTE_CALLBACK
+            case tmrCOMMAND_EXECUTE_CALLBACK_FROM_ISR:
+            case tmrCOMMAND_EXECUTE_CALLBACK:
                 timerHandle->stop();
                 if (xCommandID == -1) {
                     if (pxHigherPriorityTaskWoken) {
@@ -48,20 +68,20 @@ extern "C" BaseType_t xTimerGenericCommand(TimerHandle_t xTimer,
                     timerHandle->pxCallbackFunction(timerHandle->arg);
                 }
                 break;
-            case tmrCOMMAND_START_DONT_TRACE:  // tmrCOMMAND_START_DONT_TRACE
-            case tmrCOMMAND_START:  // tmrCOMMAND_START
+            case tmrCOMMAND_START_DONT_TRACE:
+            case tmrCOMMAND_START:
                 timerHandle->start();
                 break;
-            case tmrCOMMAND_RESET:  // tmrCOMMAND_RESET
+            case tmrCOMMAND_RESET:
                 timerHandle->reset();
                 break;
-            case tmrCOMMAND_STOP:  // tmrCOMMAND_STOP
+            case tmrCOMMAND_STOP:
                 timerHandle->stop();
                 break;
-            case tmrCOMMAND_CHANGE_PERIOD:  // tmrCOMMAND_CHANGE_PERIOD
+            case tmrCOMMAND_CHANGE_PERIOD:
                 timerHandle->setPeriod(xOptionalValue);
                 break;
-            case tmrCOMMAND_DELETE:  // tmrCOMMAND_DELETE
+            case tmrCOMMAND_DELETE:
                 timerHandle->stop();
                 delete timerHandle;
                 break;
@@ -70,5 +90,5 @@ extern "C" BaseType_t xTimerGenericCommand(TimerHandle_t xTimer,
         }
     }
 
-    return pdPASS;  // Return success code
+    return pdPASS;
 }

@@ -13,4 +13,14 @@ The project was originally developed to create a mock layer for an ESP32 project
 
 ## How to Use the Emulator
 
-Refer to the examples in the corresponding folder.
+Refer to the examples in the corresponding folder. 
+1. Clone this repository to a project folder
+2. Inlclude the source files from the freertos-mock or freertos-mock-qt folder (add_subdirectory() in CMake)
+3. Inlclune the portmacro.h example file to the project
+
+# Limitations
+
+1. No task priorities
+2. vTaskSuspend() will only stop the task at the next vTaskDelay() call.
+3. vTaskSuspend() is not implemented in the Qt version
+4. Some other functions may not be implemented

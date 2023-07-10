@@ -1,3 +1,13 @@
+/**
+ * @file mock_tasks.cpp
+ * @author Stanislav Karpikov
+ * @brief Mock layer for FreeRTOS tasks file (Qt version)
+ */
+
+/*--------------------------------------------------------------
+                       INCLUDES
+--------------------------------------------------------------*/
+
 extern "C"
 {
     #include "FreeRTOS.h"
@@ -7,6 +17,10 @@ extern "C"
 #include <QThread>
 #include <QDateTime>
 #include <QList>
+
+/*--------------------------------------------------------------
+                       PRIVATE TYPES
+--------------------------------------------------------------*/
 
 struct tskTaskControlBlock : public QThread
 {
@@ -20,11 +34,19 @@ public:
     }
 };
 
+/*--------------------------------------------------------------
+                       PRIVATE DATA
+--------------------------------------------------------------*/
+
 static QList<tskTaskControlBlock*> thread_list = QList<tskTaskControlBlock*>();
 
 #if ESP_PLATFORM
 portMUX_TYPE global_mux = SPINLOCK_INITIALIZER;
 #endif
+
+/*--------------------------------------------------------------
+                       PUBLIC FUNCTIONS
+--------------------------------------------------------------*/
 
 void vTaskStartScheduler( void )
 {
@@ -138,16 +160,22 @@ TickType_t xTaskGetTickCountFromISR( void )
     return xTaskGetTickCount();
 }
 
-void vTaskSuspend( TaskHandle_t xTaskToSuspend )
+extern "C" void vTaskSuspend( TaskHandle_t xTaskToSuspend )
 {
     Q_UNUSED(xTaskToSuspend);
-    /* No action, only used in the event loop after exit */
-    qDebug() << "vTaskSuspend() not implemented";
+    qDebug() << "vTaskSuspend() not implemented, see stdlib example in the freertos-mock folder";
+
 }
 
-void vTaskSuspendAll( void )
+extern "C" void vTaskResume( TaskHandle_t xTaskToResume )
 {
-    qDebug() << "vTaskSuspendAll() not implemented";
+    Q_UNUSED(xTaskToResume);
+    qDebug() << "vTaskResume() not implemented, see stdlib example in the freertos-mock folder";
+}
+
+extern "C" void vTaskSuspendAll( void )
+{
+    qDebug() << "vTaskSuspendAll() not implemented, see stdlib example in the freertos-mock folder";
 }
 
 TaskHandle_t xTaskGetCurrentTaskHandle( void )

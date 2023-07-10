@@ -1,7 +1,7 @@
 # Threading Example
 
 In this example two threads are created. 
-The first thread vTask1 prints a startup message and then status messages every 2 seconds. After 4 iteration the task deletes itself.
+The first thread vTask1 prints a startup message and then status messages every 2 seconds. After 4 iteration the task deletes itself. The first thread suspends and resumes the second thread.
 The second thread vTask2 prints a startup message and then status messages every 1 second.
 
 ## How to build
@@ -28,16 +28,11 @@ Task 1 is running
 Task 2 started
 Task 2 is running
 Task 2 is running
+Task 2 is running
+Task 2 is running
+Suspend second task
+Task 2 is running
+Resume second task
 Task 1 is running
-Task 2 is running
-Task 2 is running
-Task 1 is running
-Task 2 is running
-Task 2 is running
-Task 1 is running
-Task 2 is running
-Task 2 is running
-Task 1 stopped
-Task 2 is running
 Task 2 is running
 ```

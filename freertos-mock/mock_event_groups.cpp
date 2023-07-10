@@ -1,3 +1,13 @@
+/**
+ * @file mock_event_groups.cpp
+ * @author Stanislav Karpikov
+ * @brief Mock layer for FreeRTOS event groups file
+ */
+
+/*--------------------------------------------------------------
+                       INCLUDES
+--------------------------------------------------------------*/
+
 extern "C"
 {
     #include "FreeRTOS.h"
@@ -7,11 +17,19 @@ extern "C"
 #include <condition_variable>
 #include <atomic>
 
+/*--------------------------------------------------------------
+                       PRIVATE TYPES
+--------------------------------------------------------------*/
+
 struct EventGroup_t {
     std::mutex mutex;
     std::condition_variable condition;
     std::atomic<EventBits_t> bits;
 };
+
+/*--------------------------------------------------------------
+                       PUBLIC FUNCTIONS
+--------------------------------------------------------------*/
 
 EventBits_t xEventGroupSetBits(EventGroupHandle_t xEventGroup, const EventBits_t uxBitsToSet)
 {

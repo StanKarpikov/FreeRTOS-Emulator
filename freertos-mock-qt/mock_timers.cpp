@@ -1,3 +1,13 @@
+/**
+ * @file mock_timers.cpp
+ * @author Stanislav Karpikov
+ * @brief Mock layer for FreeRTOS timers file (Qt version)
+ */
+
+/*--------------------------------------------------------------
+                       INCLUDES
+--------------------------------------------------------------*/
+
 #include "simulator_rtos.h"
 extern "C"
 {
@@ -7,10 +17,18 @@ extern "C"
 #include <QTimer>
 #include <QApplication>
 
+/*--------------------------------------------------------------
+                       PRIVATE TYPES
+--------------------------------------------------------------*/
+
 struct tmrTimerControl
 {
     QTimer timer;
 };
+
+/*--------------------------------------------------------------
+                       PUBLIC FUNCTIONS
+--------------------------------------------------------------*/
 
 extern "C" TimerHandle_t xTimerCreate(const char* const pcTimerName,
                            const TickType_t xTimerPeriodInTicks,

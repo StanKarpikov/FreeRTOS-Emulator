@@ -1,3 +1,13 @@
+/**
+ * @file mock_queue.cpp
+ * @author Stanislav Karpikov
+ * @brief Mock layer for FreeRTOS queue file
+ */
+
+/*--------------------------------------------------------------
+                       INCLUDES
+--------------------------------------------------------------*/
+
 #include <condition_variable>
 #include <deque>
 #include <mutex>
@@ -10,8 +20,13 @@ extern "C"
     #include "semphr.h"
 }
 
+/*--------------------------------------------------------------
+                       PRIVATE TYPES
+--------------------------------------------------------------*/
+
 using namespace std::chrono;
 
+/** Dequeue implementation with timeout */
 class TimedDeque {
 public:
     explicit TimedDeque(size_t maxElements, size_t elementSize)
@@ -20,8 +35,7 @@ public:
     bool PushFront(const void* element, uint32_t timeoutMs) {
         std::unique_lock<std::mutex> lock(mutex_);
         if (!condFull_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]() { return deque_.size() < maxElements_; })) {
-            // Timeout occurred
-//            qDebug() << "Timeout occurred while waiting to add element to the front of the deque.";
+            printf("Timeout occurred while waiting to add element to the front of the deque.");
             return false;
         }
         void* buffer = AllocateBuffer();
@@ -34,8 +48,7 @@ public:
     bool PushBack(const void* element, uint32_t timeoutMs) {
         std::unique_lock<std::mutex> lock(mutex_);
         if (!condFull_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]() { return deque_.size() < maxElements_; })) {
-            // Timeout occurred
-//            qDebug() << "Timeout occurred while waiting to add element to the back of the deque.";
+            printf("Timeout occurred while waiting to add element to the back of the deque.");
             return false;
         }
         void* buffer = AllocateBuffer();
@@ -49,7 +62,7 @@ public:
         std::unique_lock<std::mutex> lock(mutex_);
         if (!condEmpty_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]() { return !deque_.empty(); })) {
             // Timeout occurred
-//            qDebug() << "Timeout occurred while waiting to pop element from the front of the deque.";
+//            printf("Timeout occurred while waiting to pop element from the front of the deque.");
             return false;
         }
         void* frontBuffer = deque_.front();
@@ -63,8 +76,7 @@ public:
     bool PopBack(void* destination, uint32_t timeoutMs) {
         std::unique_lock<std::mutex> lock(mutex_);
         if (!condEmpty_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]() { return !deque_.empty(); })) {
-            // Timeout occurred
-//            qDebug() << "Timeout occurred while waiting to pop element from the back of the deque.";
+            printf("Timeout occurred while waiting to pop element from the back of the deque.");
             return false;
         }
         void* backBuffer = deque_.back();
@@ -78,8 +90,7 @@ public:
     bool OverwriteLast(const void* element, uint32_t timeoutMs) {
         std::unique_lock<std::mutex> lock(mutex_);
         if (!condEmpty_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]() { return !deque_.empty(); })) {
-            // Timeout occurred
-//            qDebug() << "Timeout occurred while waiting to overwrite the last element in the deque.";
+            printf("Timeout occurred while waiting to overwrite the last element in the deque.");
             return false;
         }
         void* backBuffer = deque_.back();
@@ -202,6 +213,10 @@ typedef struct QueueDefinition /* The old naming convention is used to prevent b
     queue_type_t type;
 } xQUEUE;
 
+/*--------------------------------------------------------------
+                       PRIVATE FUNCTIONS
+--------------------------------------------------------------*/
+
 static QueueHandle_t xQueueGenericCreateInternal( const UBaseType_t uxQueueLength,
                                   const UBaseType_t uxItemSize,
                                   const uint8_t ucQueueType,
@@ -238,6 +253,10 @@ static QueueHandle_t xQueueGenericCreateInternal( const UBaseType_t uxQueueLengt
 
     return queue;
 }
+
+/*--------------------------------------------------------------
+                       PUBLIC FUNCTIONS
+--------------------------------------------------------------*/
 
 QueueHandle_t xQueueGenericCreate( const UBaseType_t uxQueueLength,
                                   const UBaseType_t uxItemSize,
@@ -343,7 +362,7 @@ BaseType_t xQueueSemaphoreTake( QueueHandle_t xQueue,
 {
     if(!xQueue)
     {
-            abort();
+        abort();
     }
     if(xQueue->u.pSemaphore == 0)
     {
@@ -398,7 +417,7 @@ BaseType_t xQueueGenericSend( QueueHandle_t xQueue,
 {
     if(!xQueue)
     {
-            abort();
+        abort();
     }
     if(xQueue->u.pSemaphore == 0)
     {
@@ -422,11 +441,11 @@ BaseType_t xQueueGenericSend( QueueHandle_t xQueue,
             switch(xCopyPosition){
                 case queueSEND_TO_BACK:
                     success = queue->PushFront(pvItemToQueue, pdTICKS_TO_MS(xTicksToWait));
-//                    qDebug() << "PushBack to " << queue << " = " << *(uint32_t*)pvItemToQueue;
+//                    printf("PushBack to " << queue << " = " << *(uint32_t*)pvItemToQueue;
                     break;
                 case queueSEND_TO_FRONT:
                     success = queue->PushBack(pvItemToQueue, pdTICKS_TO_MS(xTicksToWait));
-//                    qDebug() << "PushFront to " << queue << " = " << *(uint32_t*)pvItemToQueue;
+//                    printf("PushFront to " << queue << " = " << *(uint32_t*)pvItemToQueue;
                     break;
                 case queueOVERWRITE:
                     success = queue->OverwriteLast(pvItemToQueue, pdTICKS_TO_MS(xTicksToWait));
@@ -471,7 +490,7 @@ BaseType_t xQueueReceive(QueueHandle_t xQueue,
 {
     if(!xQueue)
     {
-            abort();
+        abort();
     }
     if(xQueue->u.pSemaphore == 0)
     {
@@ -490,17 +509,6 @@ BaseType_t xQueueReceive(QueueHandle_t xQueue,
                 abort();
             }
             success = queue->PopBack(pvBuffer, pdTICKS_TO_MS(xTicksToWait));
-//            if (success)
-//            {
-//                qDebug() << "Pop from " << queue << " = " << *(uint32_t*)pvBuffer;
-//            }
-//            else
-//            {
-//                if(xTicksToWait > 2000)
-//                {
-//                    qDebug() << "Unusual";
-//                }
-//            }
             break;
         case queueQUEUE_TYPE_BINARY_SEMAPHORE:
         case queueQUEUE_TYPE_COUNTING_SEMAPHORE:
@@ -533,7 +541,7 @@ BaseType_t xQueueGiveMutexRecursive( QueueHandle_t xMutex )
 {
     if(!xMutex)
     {
-            abort();
+        abort();
     }
     if(xMutex->u.pSemaphore == 0)
     {
@@ -575,7 +583,7 @@ BaseType_t xQueueGiveFromISR(QueueHandle_t xQueue,
 {
     if(!xQueue)
     {
-            abort();
+        abort();
     }
     if(xQueue->u.pSemaphore == 0)
     {
@@ -664,18 +672,18 @@ BaseType_t xQueueIsQueueEmpty( const QueueHandle_t xQueue )
 {
     if(!xQueue)
     {
-            abort();
+        abort();
     }
     QueueHandle_t xQueueInt;
     if(xQueue->u.pSemaphore == 0)
     {
-            /* Static queue */
-            StaticQueue_t* xQueue_static = (StaticQueue_t*)xQueue;
-            xQueueInt = (QueueHandle_t)xQueue_static->u.pvDummy2;
+        /* Static queue */
+        StaticQueue_t* xQueue_static = (StaticQueue_t*)xQueue;
+        xQueueInt = (QueueHandle_t)xQueue_static->u.pvDummy2;
     }
     else
     {
-            xQueueInt = xQueue;
+        xQueueInt = xQueue;
     }
     TimedDeque *queue = xQueue->u.pQueue;
     CountingSemaphore* sem = xQueueInt->u.pSemaphore;
@@ -685,17 +693,17 @@ BaseType_t xQueueIsQueueEmpty( const QueueHandle_t xQueue )
 
     switch (xQueue->ucQueueType)
     {
-    case queueQUEUE_TYPE_BASE:
+        case queueQUEUE_TYPE_BASE:
             retval = queue->number_of_elements();
             retval = !((xQueueInt->uxLength - retval) == 0);
             break;
-    case queueQUEUE_TYPE_BINARY_SEMAPHORE:
-    case queueQUEUE_TYPE_COUNTING_SEMAPHORE:
+        case queueQUEUE_TYPE_BINARY_SEMAPHORE:
+        case queueQUEUE_TYPE_COUNTING_SEMAPHORE:
             retval = !sem->available();
             break;
-    case queueQUEUE_TYPE_RECURSIVE_MUTEX:
-    case queueQUEUE_TYPE_MUTEX:
-    default:
+        case queueQUEUE_TYPE_RECURSIVE_MUTEX:
+        case queueQUEUE_TYPE_MUTEX:
+        default:
             printf("Unexpected queue type (xQueueGiveFromISR) %lu\n", xQueue->ucQueueType);
             abort();
             return pdFAIL;
@@ -712,10 +720,42 @@ void vQueueDelete( QueueHandle_t xQueue )
 {
     if(!xQueue)
     {
-            abort();
+        abort();
     }
-    delete xQueue->u.pQueue;
-    delete xQueue;
+    QueueHandle_t xQueueInt;
+    if(xQueue->u.pSemaphore == 0)
+    {
+        /* Static queue */
+        StaticQueue_t* xQueue_static = (StaticQueue_t*)xQueue;
+        xQueueInt = (QueueHandle_t)xQueue_static->u.pvDummy2;
+    }
+    else
+    {
+        xQueueInt = xQueue;
+    }
+    switch (xQueueInt->ucQueueType)
+    {
+        case queueQUEUE_TYPE_BASE:  // queueQUEUE_TYPE_BASE / queueQUEUE_TYPE_SET
+            delete xQueueInt->u.pQueue;
+            break;
+        case queueQUEUE_TYPE_MUTEX:
+            delete xQueueInt->u.pMutex;
+            break;
+        case queueQUEUE_TYPE_COUNTING_SEMAPHORE:
+            delete xQueueInt->u.pSemaphore;
+            break;
+        case queueQUEUE_TYPE_BINARY_SEMAPHORE:
+            delete xQueueInt->u.pSemaphore;
+            break;
+        case queueQUEUE_TYPE_RECURSIVE_MUTEX:
+            delete xQueueInt->u.pRecursiveMutex;
+            break;
+        default:
+            printf("Unexpected queue type (vQueueDelete) %ld\n", xQueueInt->ucQueueType);
+            abort();
+            return;
+    }
+    delete xQueueInt;
 }
 
 BaseType_t xQueueAddToSet( QueueSetMemberHandle_t xQueueOrSemaphore,

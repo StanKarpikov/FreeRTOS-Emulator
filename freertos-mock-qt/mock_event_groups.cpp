@@ -1,3 +1,13 @@
+/**
+ * @file mock_event_groups.cpp
+ * @author Stanislav Karpikov
+ * @brief Mock layer for FreeRTOS event groups file (Qt version)
+ */
+
+/*--------------------------------------------------------------
+                       INCLUDES
+--------------------------------------------------------------*/
+
 extern "C"
 {
     #include "FreeRTOS.h"
@@ -5,11 +15,19 @@ extern "C"
 }
 #include <QtCore>
 
+/*--------------------------------------------------------------
+                       PRIVATE TYPES
+--------------------------------------------------------------*/
+
 struct EventGroup_t {
     QMutex mutex;
     QWaitCondition condition;
     QAtomicInt bits;
 };
+
+/*--------------------------------------------------------------
+                       PRIVATE FUNCTIONS
+--------------------------------------------------------------*/
 
 // Sets bits in the event group
 EventBits_t xEventGroupSetBits(EventGroupHandle_t xEventGroup, const EventBits_t uxBitsToSet)

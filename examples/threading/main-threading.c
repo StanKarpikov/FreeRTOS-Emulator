@@ -2,6 +2,9 @@
 #include "task.h"
 #include "stdio.h"
 
+/* Task handle is used to suspend the task */
+static TaskHandle_t second_task_handle = NULL;
+
 void vTask1(void *pvParameters)
 {
     printf("Task 1 started\n");
@@ -9,6 +12,13 @@ void vTask1(void *pvParameters)
     {
         printf("Task 1 is running\n");
         vTaskDelay(pdMS_TO_TICKS(2000));
+
+        printf("Suspend second task\n");
+        vTaskSuspend(second_task_handle);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+
+        printf("Resume second task\n");
+        vTaskResume(second_task_handle);
     }
     printf("Task 1 stopped\n");
     vTaskDelete(NULL);
@@ -20,7 +30,7 @@ void vTask2(void *pvParameters)
     for (;;)
     {
         printf("Task 2 is running\n");
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
 
@@ -38,7 +48,7 @@ int main(void)
                 40,
                 NULL,
                 1,
-                NULL);
+                &second_task_handle);
 
     vTaskStartScheduler();
     return 0;

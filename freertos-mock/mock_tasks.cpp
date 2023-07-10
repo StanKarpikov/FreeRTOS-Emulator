@@ -1,7 +1,20 @@
+/**
+ * @file mock_tasks.cpp
+ * @author Stanislav Karpikov
+ * @brief Mock layer for FreeRTOS tasks file
+ */
+
+/*--------------------------------------------------------------
+                       INCLUDES
+--------------------------------------------------------------*/
+
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
 #include <cstdlib>
+#include <iostream>
 #include <thread>
+#include <chrono>
 #include <string>
 #include <list>
 #include <unistd.h>
@@ -13,6 +26,19 @@ extern "C"
 }
 #include <signal.h>
 
+/*--------------------------------------------------------------
+                       PRIVATE DEFINES
+--------------------------------------------------------------*/
+
+/** Maximum waiting time to get the task into suspended state */
+#define WAIT_FOR_TASK_SUSPENDED_TIMEOUT 3000
+
+/*--------------------------------------------------------------
+                       PRIVATE TYPES
+--------------------------------------------------------------*/
+
+typedef std::chrono::duration<int, std::milli> milliseconds_type;
+
 #if ESP_PLATFORM
 portMUX_TYPE global_mux = SPINLOCK_INITIALIZER;
 #endif
@@ -20,11 +46,8 @@ portMUX_TYPE global_mux = SPINLOCK_INITIALIZER;
 struct tskTaskControlBlock
 {
 public:
-    TaskFunction_t taskCode;
-    void* parameters;
-    TaskHandle_t* createdTask;
-
-    void run() {
+    void run()
+    {
         thread_id = pthread_self();
         thread_started = true;
         pthread_setname_np(pthread_self(), _name.c_str());
@@ -33,7 +56,53 @@ public:
 
     void start(void)
     {
+        suspend_requested.unlock();
         worker = std::thread(&tskTaskControlBlock::run, this);
+    }
+
+    void process_events(void)
+    {
+        if(!suspend_requested.try_lock())
+        {
+            task_suspended.notify_all();
+            suspend_requested.lock();
+        }
+        suspend_requested.unlock();
+
+        if(!delete_requested.try_lock())
+        {
+            stop();
+        }
+        delete_requested.unlock();
+    }
+
+    void suspend(void)
+    {
+        if(thread_suspended)
+        {
+            return;
+        }
+        thread_suspended = true;
+        if(suspend_requested.try_lock())
+        {
+            std::unique_lock<std::mutex> lock_suspended(task_suspended_mutex);
+            milliseconds_type duration(WAIT_FOR_TASK_SUSPENDED_TIMEOUT);
+            if(task_suspended.wait_for(lock_suspended, duration) == std::cv_status::timeout)
+            {
+                std::cout << "Error waiting for task suspention";
+            }
+        }
+    }
+
+    void resume(void)
+    {
+        thread_suspended = false;
+        suspend_requested.unlock();
+    }
+
+    void exit(void)
+    {
+        pthread_exit(0);
     }
 
     void stop(void)
@@ -42,11 +111,12 @@ public:
         {
             if (thread_id == pthread_self())
             {
-                pthread_exit(0);
+                exit();
             }
             else
             {
-                pthread_kill(thread_id, SIGTERM);
+                delete_requested.lock();
+                worker.join();
             }
             thread_started = false;
         }
@@ -61,25 +131,68 @@ public:
         _name = std::string(name);
     }
 
+    TaskFunction_t taskCode;
+    void* parameters;
+    TaskHandle_t* createdTask;
+    std::condition_variable task_suspended;
+    std::mutex task_suspended_mutex;
+
     pthread_t thread_id;
     std::atomic<bool> thread_started;
+    std::atomic<bool> thread_suspended;
     std::thread worker;
     std::string _name;
+    std::mutex suspend_requested;
+    std::mutex delete_requested;
 };
 
+/*--------------------------------------------------------------
+                       PRIVATE DATA
+--------------------------------------------------------------*/
+
+static std::condition_variable tasks_deleted;
+static std::condition_variable request_task_deletion;
+static std::mutex task_deletion_mutex;
+static std::mutex task_management_mutex;
 static std::list<tskTaskControlBlock*> thread_list = std::list<tskTaskControlBlock*>();
 static std::list<tskTaskControlBlock*> deleted_thread_list = std::list<tskTaskControlBlock*>();
 
-void vTaskStartScheduler( void )
+/*--------------------------------------------------------------
+                      PUBLIC FUNCTIONS
+--------------------------------------------------------------*/
+
+extern "C" void vTaskStartScheduler( void )
 {
+    std::list<tskTaskControlBlock*> deleted_thread_list_copy;
+    std::list<tskTaskControlBlock*> thread_list_copy;
     while(true)
     {
-        sleep(100000);
+        std::unique_lock<std::mutex> lock_del(task_deletion_mutex);
+        request_task_deletion.wait(lock_del);
+        {
+            std::unique_lock<std::mutex> lock_man(task_management_mutex);
+            deleted_thread_list_copy = deleted_thread_list;
+            thread_list_copy = thread_list;
+        }
+        for(auto thread : deleted_thread_list_copy)
+        {
+            bool found = (std::find(thread_list_copy.begin(), thread_list_copy.end(), thread) != thread_list_copy.end());
+            if(found)
+            {
+                thread->stop();
+                delete thread;
+                std::unique_lock<std::mutex> lock_man(task_management_mutex);
+                thread_list.remove(thread);
+            }
+        }
+        tasks_deleted.notify_one();
     };
 }
 
-void vTaskDelay( const TickType_t xTicksToDelay )
+extern "C" void vTaskDelay( const TickType_t xTicksToDelay )
 {
+    tskTaskControlBlock *task = xTaskGetCurrentTaskHandle();
+    task->process_events();
     TickType_t ticks = xTicksToDelay;
     usleep(pdTICKS_TO_MS(ticks)*1000);
 }
@@ -99,7 +212,10 @@ extern "C" BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
     thread->createdTask = pvCreatedTask;
     thread->setObjectName(pcName);
 
-    thread_list.push_back(thread);
+    {
+        std::unique_lock<std::mutex> lk(task_management_mutex);
+        thread_list.push_back(thread);
+    }
 
     thread->start();
     if(pvCreatedTask)
@@ -108,16 +224,6 @@ extern "C" BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pvTaskCode,
     }
 
     return pdPASS;
-}
-
-extern "C" BaseType_t xTaskCreate( TaskFunction_t pxTaskCode,
-                            const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
-                            const configSTACK_DEPTH_TYPE usStackDepth,
-                            void * const pvParameters,
-                            UBaseType_t uxPriority,
-                            TaskHandle_t * const pxCreatedTask )
-{
-    return xTaskCreatePinnedToCore(pxTaskCode, pcName, usStackDepth, pvParameters, uxPriority, pxCreatedTask, 0);
 }
 
 extern "C" TaskHandle_t xTaskCreateStaticPinnedToCore( TaskFunction_t pvTaskCode,
@@ -134,8 +240,19 @@ extern "C" TaskHandle_t xTaskCreateStaticPinnedToCore( TaskFunction_t pvTaskCode
     return pvCreatedTask;
 }
 
+extern "C" BaseType_t xTaskCreate( TaskFunction_t pxTaskCode,
+                            const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+                            const configSTACK_DEPTH_TYPE usStackDepth,
+                            void * const pvParameters,
+                            UBaseType_t uxPriority,
+                            TaskHandle_t * const pxCreatedTask )
+{
+    return xTaskCreatePinnedToCore(pxTaskCode, pcName, usStackDepth, pvParameters, uxPriority, pxCreatedTask, 0);
+}
+
 extern "C" void vTaskDelete( TaskHandle_t xTaskToDelete )
 {
+    bool delete_self = false;
     if(!xTaskToDelete)
     {
         xTaskToDelete = xTaskGetCurrentTaskHandle();
@@ -143,56 +260,74 @@ extern "C" void vTaskDelete( TaskHandle_t xTaskToDelete )
         {
             abort();
         }
+        delete_self = true;
     }
-    tskTaskControlBlock* thread = xTaskToDelete;
-    thread_list.erase(std::remove_if(thread_list.begin(), thread_list.end(),
-                                     [thread](tskTaskControlBlock* check_thread)
-                                     {
-                                         return check_thread == thread;
-                                     }),
-                                     thread_list.end());
-    if (thread) {
-        deleted_thread_list.push_back(thread);
-        thread->stop();
-        delete xTaskToDelete; /* TODO: We never reach this step if this is called from the running thread */
+    {
+        std::unique_lock<std::mutex> lk(task_management_mutex);
+        deleted_thread_list.push_back(xTaskToDelete);
+        request_task_deletion.notify_one();
+    }
+    if(delete_self)
+    {
+        while(1)
+        {
+            /* Wait until deleted */
+            xTaskToDelete->process_events();
+        }
+    }
+    else
+    {
+        std::unique_lock<std::mutex> lk(task_management_mutex);
+        tasks_deleted.wait(lk);
     }
 }
 
-void terminateAllTasks(void)
+extern "C" void terminateAllTasks(void)
 {
-    thread_list.erase(std::remove_if(thread_list.begin(), thread_list.end(),
-                                     [](tskTaskControlBlock* thread)
-                                     {
-                                         thread->stop();
-                                         delete thread;
-                                         return true;
-                                     }),
-                      thread_list.end());
+    std::unique_lock<std::mutex> lk(task_management_mutex);
+    for(auto thread : thread_list)
+    {
+        deleted_thread_list.push_back(thread);
+    }
+    request_task_deletion.notify_one();
 }
 
-TickType_t xTaskGetTickCount( void )
+extern "C" TickType_t xTaskGetTickCount( void )
 {
     return pdMS_TO_TICKS(port_get_time_ms());
 }
 
-TickType_t xTaskGetTickCountFromISR( void )
+extern "C" TickType_t xTaskGetTickCountFromISR( void )
 {
     return xTaskGetTickCount();
 }
 
-void vTaskSuspend( TaskHandle_t xTaskToSuspend )
+extern "C" void vTaskSuspend( TaskHandle_t xTaskToSuspend )
 {
-    /* No action, only used in the event loop after exit */
-    printf("vTaskSuspend() not implemented\n");
+    /* This will only suspend the task on the next sleep call */
+    xTaskToSuspend->suspend();
 }
 
-void vTaskSuspendAll( void )
+extern "C" void vTaskResume( TaskHandle_t xTaskToResume )
 {
-    printf("vTaskSuspendAll() not implemented\n");
+    xTaskToResume->resume();
 }
 
-TaskHandle_t xTaskGetCurrentTaskHandle( void )
+extern "C" void vTaskSuspendAll( void )
 {
+    std::unique_lock<std::mutex> lk(task_management_mutex);
+    for(auto thread : thread_list)
+    {
+        if (thread->thread_id == pthread_self())
+        {
+            thread->suspend();
+        }
+    }
+}
+
+extern "C" TaskHandle_t xTaskGetCurrentTaskHandle( void )
+{
+    std::unique_lock<std::mutex> lk(task_management_mutex);
     for(auto thread : thread_list)
     {
         if (thread->thread_id == pthread_self())
@@ -203,19 +338,20 @@ TaskHandle_t xTaskGetCurrentTaskHandle( void )
     return NULL;
 }
 
-TaskHandle_t xTaskGetIdleTaskHandleForCPU( UBaseType_t cpuid )
+extern "C" TaskHandle_t xTaskGetIdleTaskHandleForCPU( UBaseType_t cpuid )
 {
     /* No need to implement */
     return NULL;
 }
 
-BaseType_t xTaskGetSchedulerState( void )
+extern "C" BaseType_t xTaskGetSchedulerState( void )
 {
     return taskSCHEDULER_RUNNING;
 }
 
 extern "C" eTaskState eTaskGetState( TaskHandle_t xTask )
 {
+    std::unique_lock<std::mutex> lk(task_management_mutex);
     if (!xTask)
     {
         return eRunning;
@@ -236,15 +372,43 @@ extern "C" eTaskState eTaskGetState( TaskHandle_t xTask )
     {
         if (thread_check == thread)
         {
+            if(thread->thread_suspended)
+            {
+                return eSuspended;
+            }
             if(thread->thread_started)
             {
                 return eReady;
             }
-            else
-            {
-                return eSuspended;
-            }
+            break;
         }
     }
     return eInvalid;
+}
+
+extern "C" UBaseType_t uxTaskGetNumberOfTasks(void)
+{
+    return thread_list.size();
+}
+
+extern "C" UBaseType_t uxTaskGetSystemState( TaskStatus_t * const pxTaskStatusArray,
+                                 const UBaseType_t uxArraySize,
+                                 uint32_t * const pulTotalRunTime )
+
+{
+    /* TODO: This mutex can cause a dead lock because of eTaskGetState() */
+    /* std::unique_lock<std::mutex> lk(task_management_mutex); */
+    int i=0;
+    for(auto thread_check : thread_list)
+    {
+        pxTaskStatusArray[i].pcTaskName = thread_check->_name.c_str();
+        pxTaskStatusArray[i].xTaskNumber = i;
+        pxTaskStatusArray[i].eCurrentState = eTaskGetState(thread_check);
+#if ESP_PLATFORM
+        pxTaskStatusArray[i].xCoreID = 0;
+#endif
+        pxTaskStatusArray[i].usStackHighWaterMark = 0;
+        i++;
+    }
+    return thread_list.size();
 }

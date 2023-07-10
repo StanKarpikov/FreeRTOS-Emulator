@@ -1,3 +1,13 @@
+/**
+ * @file mock_queue.cpp
+ * @author Stanislav Karpikov
+ * @brief Mock layer for FreeRTOS queue file (Qt version)
+ */
+
+/*--------------------------------------------------------------
+                       INCLUDES
+--------------------------------------------------------------*/
+
 #include <condition_variable>
 #include <deque>
 #include <mutex>
@@ -13,6 +23,10 @@ extern "C"
 #include <QQueue>
 #include <QMutex>
 #include <QSemaphore>
+
+/*--------------------------------------------------------------
+                       PRIVATE TYPES
+--------------------------------------------------------------*/
 
 class TimedDeque {
 public:
@@ -139,6 +153,10 @@ typedef struct QueueDefinition /* The old naming convention is used to prevent b
     queue_type_t type;
 } xQUEUE;
 
+/*--------------------------------------------------------------
+                       PRIVATE FUNCTIONS
+--------------------------------------------------------------*/
+
 static QueueHandle_t xQueueGenericCreateInternal( const UBaseType_t uxQueueLength,
                                   const UBaseType_t uxItemSize,
                                   const uint8_t ucQueueType,
@@ -176,6 +194,10 @@ static QueueHandle_t xQueueGenericCreateInternal( const UBaseType_t uxQueueLengt
 
     return queue;
 }
+
+/*--------------------------------------------------------------
+                       PUBLIC FUNCTIONS
+--------------------------------------------------------------*/
 
 QueueHandle_t xQueueGenericCreate( const UBaseType_t uxQueueLength,
                                   const UBaseType_t uxItemSize,
