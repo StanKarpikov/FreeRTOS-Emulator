@@ -482,17 +482,6 @@ BaseType_t xQueueReceive(QueueHandle_t xQueue,
             abort();
         }
         success = queue->PopBack(pvBuffer, pdTICKS_TO_MS(xTicksToWait));
-        //            if (success)
-        //            {
-        //                qDebug() << "Pop from " << queue << " = " << *(uint32_t*)pvBuffer;
-        //            }
-        //            else
-        //            {
-        //                if(xTicksToWait > 2000)
-        //                {
-        //                    qDebug() << "Unusual";
-        //                }
-        //            }
         break;
     case queueQUEUE_TYPE_BINARY_SEMAPHORE:
     case queueQUEUE_TYPE_COUNTING_SEMAPHORE:
